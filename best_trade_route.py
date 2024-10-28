@@ -181,81 +181,95 @@ class BestTradeRouteTab(QWidget):
                 QMessageBox.warning(self, "Input Error", "Please Select a Departure System.")
                 return
 
-            # Fetch all commodities to find the best trade routes
-            commodities = await self.api.fetch_data("/commodities")
-            if not commodities or "data" not in commodities:
-                self.logger.log(logging.INFO, "No commodities found.")
-                self.trade_route_table.insertRow(0)
-                item = QTableWidgetItem("No results found")
-                item.setFlags(item.flags() & ~Qt.ItemIsEditable)  # Make the item non-editable
-                self.trade_route_table.setItem(0, 0, item)
-                return
-
             trade_routes = []
-            for commodity in commodities["data"]:
-                # Fetch trade routes using the /commodities_routes endpoint
-                params = {'id_commodity': commodity["id"]}
-                trade_routes_data = await self.api.fetch_data("/commodities_routes", params=params)
-                if isinstance(trade_routes_data, dict):
-                    trade_routes_data = trade_routes_data.get("data", [])
-
-                for route in trade_routes_data:
-                    # Filter routes based on selected source and destination systems and planets
-                    if departure_system_id and route["id_star_system_origin"] != departure_system_id:
-                        continue
-                    if departure_planet_id and route["id_planet_origin"] != departure_planet_id:
-                        continue
-                    if destination_system_id and route["id_star_system_destination"] != destination_system_id:
-                        continue
-                    if destination_planet_id and route["id_planet_destination"] != destination_planet_id:
+            for departure_terminal in self.terminals:
+                departure_commodities = await self.api.fetch_data("/commodities_prices", params={'id_terminal': departure_terminal["id"]})
+                self.logger.log(logging.INFO, f"Iterating through {len(departure_commodities.get('data', []))} commodities at departure terminal {departure_terminal['name']}")
+                for departure_commodity in departure_commodities.get("data", []):
+                    # Only get arrival terminals for commodities that can be bought in departure
+                    if departure_commodity.get("price_buy") == 0:
                         continue
 
-                    # Apply filters if checkboxes are checked
-                    if self.ignore_stocks_checkbox.isChecked():
-                        available_scu = max_scu
-                    else:
-                        available_scu = route.get("scu_origin", 0)
+                    params = {'id_commodity': departure_commodity.get("id_commodity")}
+                    if destination_system_id:
+                        params['id_star_system'] = destination_system_id
+                    arrival_commodities = await self.api.fetch_data("/commodities_prices", params=params)
+                    self.logger.log(logging.INFO, f"Found {len(arrival_commodities.get('data', []))} terminals that might sell {departure_commodity.get('commodity_name')}")
 
-                    if self.ignore_demand_checkbox.isChecked():
-                        demand_scu = max_scu
-                    else:
-                        demand_scu = route.get("scu_destination", 0)
+                    for arrival_commodity in arrival_commodities.get("data", []):
+                        # Check if terminal is available
+                        if arrival_commodity.get("is_available") == 0:
+                            continue
 
-                    # Skip if buy or sell price is 0 or if SCU requirements aren't met
-                    if not route.get("price_origin") or not route.get("price_destination") or available_scu <= 0 or not demand_scu:
-                        continue
+                        # Check if terminal is the same as departure
+                        if arrival_commodity.get("id_terminal") == departure_terminal["id"]:
+                            continue
 
-                    max_buyable_scu = min(max_scu, available_scu, int(max_investment // route.get("price_origin")), demand_scu)
-                    if max_buyable_scu <= 0:
-                        continue
+                        # Apply filters if checkboxes are checked
+                        if self.ignore_stocks_checkbox.isChecked():
+                            available_scu = max_scu
+                        else:
+                            available_scu = departure_commodity.get("scu_buy", 0)
 
-                    investment = route.get("price_origin") * max_buyable_scu
-                    unit_margin = (route.get("price_destination") - route.get("price_origin"))
-                    total_margin = unit_margin * max_buyable_scu
-                    profit_margin = unit_margin / route.get("price_origin")
+                        if self.ignore_demand_checkbox.isChecked():
+                            demand_scu = max_scu
+                        else:
+                            demand_scu = arrival_commodity.get("scu_sell_stock", 0) - arrival_commodity.get("scu_sell_users", 0)
 
-                    trade_routes.append({
-                        "departure": route["origin_terminal_name"],
-                        "destination": route["destination_terminal_name"],
-                        "commodity": route["commodity_name"],
-                        "buy_scu": str(max_buyable_scu) + " SCU",
-                        "buy_price": str(route.get("price_origin")) + " UEC",
-                        "sell_price": str(route.get("price_destination")) + " UEC",
-                        "investment": str(investment) + " UEC",
-                        "unit_margin": str(unit_margin) + " UEC",
-                        "total_margin": str(total_margin) + " UEC",
-                        "departure_scu_available": str(route.get("scu_origin", 0)) + " SCU",
-                        "arrival_demand_scu": str(route.get("scu_destination", 0)) + " SCU",
-                        "profit_margin": str(round(profit_margin * 100)) + "%",
-                        "departure_terminal_id": route["id_terminal_origin"],
-                        "arrival_terminal_id": route["id_terminal_destination"],
-                        "departure_system_id": route["id_star_system_origin"],
-                        "arrival_system_id": route["id_star_system_destination"],
-                        "departure_planet_id": route["id_planet_origin"],
-                        "arrival_planet_id": route["id_planet_destination"],
-                        "commodity_id": route["id_commodity"],
-                        "max_buyable_scu": max_buyable_scu
-                    })
+                        # Skip if buy or sell price is 0 or if SCU requirements aren't met
+                        if not departure_commodity.get("price_buy") or not arrival_commodity.get("price_sell") or available_scu <= 0 or not demand_scu:
+                            continue
+
+                        max_buyable_scu = min(max_scu, available_scu, int(max_investment // departure_commodity.get("price_buy")), demand_scu)
+                        if max_buyable_scu <= 0:
+                            continue
+
+                        investment = departure_commodity.get("price_buy") * max_buyable_scu
+                        unit_margin = (arrival_commodity.get("price_sell") - departure_commodity.get("price_buy"))
+                        total_margin = unit_margin * max_buyable_scu
+                        profit_margin = unit_margin / departure_commodity.get("price_buy")
+
+                        trade_routes.append({
+                            "departure": departure_terminal["name"],
+                            "destination": arrival_commodity["terminal_name"],
+                            "commodity": departure_commodity.get("commodity_name"),
+                            "buy_scu": str(max_buyable_scu) + " SCU",
+                            "buy_price": str(departure_commodity.get("price_buy")) + " UEC",
+                            "sell_price": str(arrival_commodity.get("price_sell")) + " UEC",
+                            "investment": str(investment) + " UEC",
+                            "unit_margin": str(unit_margin) + " UEC",
+                            "total_margin": str(total_margin) + " UEC",
+                            "departure_scu_available": str(departure_commodity.get("scu_buy", 0)) + " SCU",
+                            "arrival_demand_scu": str(arrival_commodity.get("scu_sell_stock", 0) - arrival_commodity.get("scu_sell_users", 0)) + " SCU",
+                            "profit_margin": str(round(profit_margin * 100)) + "%",
+                            "departure_terminal_id": departure_terminal["id"],
+                            "arrival_terminal_id": arrival_commodity.get("id_terminal"),
+                            "departure_system_id": departure_system_id,  # Add departure system ID
+                            "arrival_system_id": arrival_commodity.get("id_star_system"),  # Add arrival system ID
+                            "departure_planet_id": departure_terminal.get("id_planet"),  # Add departure planet ID
+                            "arrival_planet_id": arrival_commodity.get("id_planet"),  # Add arrival planet ID
+                            "commodity_id": departure_commodity.get("id_commodity"),
+                            "max_buyable_scu": max_buyable_scu
+                        })
+                        self.trade_route_table.insertRow(len(trade_routes) - 1)
+                        for j, value in enumerate(trade_routes[len(trade_routes) - 1].values()):
+                            i = len(trade_routes) - 1
+                            if j < len(columns) - 1:
+                                item = QTableWidgetItem(str(value))
+                                item.setFlags(item.flags() & ~Qt.ItemIsEditable)  # Make the item non-editable
+                                self.trade_route_table.setItem(i, j, item)
+                            else:
+                                # Add action buttons
+                                action_layout = QHBoxLayout()
+                                buy_button = QPushButton("Select to Buy")
+                                buy_button.clicked.connect(partial(self.select_to_buy, trade_routes[i]))
+                                sell_button = QPushButton("Select to Sell")
+                                sell_button.clicked.connect(partial(self.select_to_sell, trade_routes[i]))
+                                action_layout.addWidget(buy_button)
+                                action_layout.addWidget(sell_button)
+                                action_widget = QWidget()
+                                action_widget.setLayout(action_layout)
+                                self.trade_route_table.setCellWidget(i, j, action_widget)
 
             # Sort trade routes by profit margin (descending)
             trade_routes.sort(key=lambda x: float(x["total_margin"].split()[0]), reverse=True)
