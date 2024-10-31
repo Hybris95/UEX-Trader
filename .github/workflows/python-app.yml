@@ -117,7 +117,7 @@ jobs:
       run: |
         xvfb-run -a pytest --isolate -v
   build:
-    name: Generate Build Artifacts
+    name: build
     needs: test
     strategy:
       matrix:

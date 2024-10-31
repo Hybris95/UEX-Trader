@@ -1,4 +1,4 @@
-# test_minimal.py
+# test_gui_minimal.py
 import pytest
 from PyQt5.QtWidgets import QApplication, QLabel
 
@@ -8,7 +8,7 @@ def app():
     return QApplication([])
 
 
-def test_minimal(app):
+def test_gui_minimal(app):
     label = QLabel("Hello, World!")
     label.show()
     assert label.text() == "Hello, World!"
