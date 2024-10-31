@@ -7,3 +7,4 @@ flake8==7.1.1
 pytest==8.3.3
 pytest-qt==4.4.0
 pytest-isolate==0.0.2
+xvfbwrapper==0.2.9
