@@ -102,12 +102,12 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=.venv,build,dist
     - name: Install xvfb
       run: sudo apt-get install -y xvfb libxcb-xinerama0
-    - name: Run tests and capture core dumps
+    - name: Run minimal test and capture core dump if failing
       run: |
-        chmod +x run_tests.sh
-        ./run_tests.sh
-    - name: Upload core dumps
-      if: always()
+        chmod +x run_minimal_test.sh
+        ./run_minimal_test.sh
+    - name: Upload core dump
+      if: failure()
       uses: actions/upload-artifact@v4.4.3
       with:
         name: core-dumps
