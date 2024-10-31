@@ -59,6 +59,11 @@ jobs:
         python-version: [3.11]
     runs-on: ${{ matrix.os }}
     steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5.3.0
+      with:
+        python-version: ${{ matrix.python-version }}
     - name: Cache
       uses: actions/cache@v4.1.2
       with:
@@ -72,6 +77,14 @@ jobs:
         enableCrossOsArchive: false
         # Fail the workflow if cache entry is not found
         fail-on-cache-miss: true
+    - name: Activate VENV (Linux)
+      if: ${{ matrix.os == 'ubuntu-latest' }}
+      run: |
+        source .venv/bin/activate
+    - name: Activate VENV (Windows)
+      if: ${{ matrix.os == 'windows-latest' }}
+      run: |
+        .\.venv\Scripts\activate
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
@@ -104,6 +117,27 @@ jobs:
     runs-on: ${{ matrix.os }}*
     if: ${{ github.event_name == 'push' }}
     steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5.3.0
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Cache
+      uses: actions/cache@v4.1.2
+      with:
+        path: .venv
+        key: ${{ matrix.os }}-python-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: ${{ matrix.os }}-python-${{ matrix.python-version }}
+        enableCrossOsArchive: false
+        fail-on-cache-miss: true
+    - name: Activate VENV (Linux)
+      if: ${{ matrix.os == 'ubuntu-latest' }}
+      run: |
+        source .venv/bin/activate
+    - name: Activate VENV (Windows)
+      if: ${{ matrix.os == 'windows-latest' }}
+      run: |
+        .\.venv\Scripts\activate
     - name: PyInstaller Action
       uses: Martin005/pyinstaller-action@v1.2.0
       with:
