@@ -4,4 +4,4 @@ import pytest
 
 def test_nogui_minimal():
     text = "Hello, World!"
-    assert text.text() == "Hello, World!"
+    assert text == "Hello, World!"
