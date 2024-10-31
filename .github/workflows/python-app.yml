@@ -25,15 +25,16 @@ jobs:
       uses: actions/setup-python@v5.3.0
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Python VENV (Linux)
+    - name: Create VENV
+      run: |
+        python -m venv .venv
+    - name: Activate VENV (Linux)
       if: ${{ matrix.os == 'ubuntu-latest' }}
       run: |
-        python -m venv .venv
         source .venv/bin/activate
-    - name: Python VENV (Windows)
+    - name: Activate VENV (Windows)
       if: ${{ matrix.os == 'windows-latest' }}
       run: |
-        python -m venv .venv
         .\.venv\Scripts\activate
     - name: Cache
       uses: actions/cache@v4.1.2
@@ -43,23 +44,34 @@ jobs:
         # An explicit key for restoring and saving the cache
         key: ${{ matrix.os }}-python-${{ hashFiles('**/requirements.txt') }}
         # An ordered multiline string listing the prefix-matched keys, that are used for restoring stale cache if no cache hit occurred for key. Note `cache-hit` returns false in this case.
-        restore-keys: ${{ matrix.os }}-python-${{ matrix.python-version }} # optional
-        # The chunk size used to split up large files during upload, in bytes
-        upload-chunk-size: # optional
+        restore-keys: ${{ matrix.os }}-python-${{ matrix.python-version }}
         # An optional boolean when enabled, allows windows runners to save or restore caches that can be restored or saved respectively on other platforms
         enableCrossOsArchive: false
-        # Fail the workflow if cache entry is not found
-        fail-on-cache-miss: # optional, default is false
-        # Check if a cache entry exists for the given input(s) (key, restore-keys) without downloading the cache
-        lookup-only: # optional, default is false
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
   test:
     needs: env
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version: [3.11]
+    runs-on: ${{ matrix.os }}
     steps:
+    - name: Cache
+      uses: actions/cache@v4.1.2
+      with:
+        # A list of files, directories, and wildcard patterns to cache and restore
+        path: .venv
+        # An explicit key for restoring and saving the cache
+        key: ${{ matrix.os }}-python-${{ hashFiles('**/requirements.txt') }}
+        # An ordered multiline string listing the prefix-matched keys, that are used for restoring stale cache if no cache hit occurred for key. Note `cache-hit` returns false in this case.
+        restore-keys: ${{ matrix.os }}-python-${{ matrix.python-version }}
+        # An optional boolean when enabled, allows windows runners to save or restore caches that can be restored or saved respectively on other platforms
+        enableCrossOsArchive: false
+        # Fail the workflow if cache entry is not found
+        fail-on-cache-miss: true
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
