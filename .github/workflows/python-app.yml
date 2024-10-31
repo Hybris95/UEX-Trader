@@ -25,10 +25,16 @@ jobs:
       uses: actions/setup-python@v5.3.0
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Python VENV
+    - name: Python VENV (Linux)
+      if: ${{ matrix.os == "ubuntu-latest" }}
       run: |
         python -m venv .venv
         source .venv/bin/activate
+    - name: Python VENV (Windows)
+      if: ${{ matrix.os == "windows-latest" }}
+      run: |
+        python -m venv .venv
+        .\.venv\Scripts\activate
     - name: Cache
       uses: actions/cache@v4.1.2
       with:
