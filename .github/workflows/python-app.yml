@@ -88,11 +88,12 @@ jobs:
     steps:
     - name: PyInstaller Action
       uses: Martin005/pyinstaller-action@v1.2.0
-      inputs: 
-        spec: main.py
-        requirements: requirements.txt
-        options: --onedir,--windowed,--icon ./resources/uextrader_icon_resized_idL_icon.ico,--add-data ./resources/*:resources/*
+      with:
         python_ver: ${{ matrix.python-version }}
+        spec: 'main.py'
+        requirements: 'requirements.txt'
+        upload_exe_with_name: 'UEX-Trader'
+        options: --onedir, --name "UEX-Trader", --windowed, --icon ./resources/uextrader_icon_resized_idL_icon.ico, --add-data ./resources/*:resources/*
     - name: Upload Compiled Executables
       uses: actions/upload-artifact@v4.4.3
       with:
