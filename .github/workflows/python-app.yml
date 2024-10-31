@@ -81,10 +81,14 @@ jobs:
       if: ${{ matrix.os == 'ubuntu-latest' }}
       run: |
         source .venv/bin/activate
+        pip --version
+        pip list
     - name: Activate VENV (Windows)
       if: ${{ matrix.os == 'windows-latest' }}
       run: |
         .\.venv\Scripts\activate
+        pip --version
+        pip list
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
