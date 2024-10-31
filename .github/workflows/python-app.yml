@@ -37,7 +37,7 @@ jobs:
       run: |
         .\.venv\Scripts\activate
     - name: Load Cache
-      uses: actions/cache@v4.1.2
+      uses: actions/cache/load@v4.1.2
       with:
         # A list of files, directories, and wildcard patterns to cache and restore
         path: .venv
@@ -71,7 +71,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: Load Cache
-      uses: actions/cache@v4.1.2
+      uses: actions/cache/load@v4.1.2
       with:
         # A list of files, directories, and wildcard patterns to cache and restore
         path: .venv
@@ -94,6 +94,11 @@ jobs:
       run: |
         .\.venv\Scripts\activate
         pip --version
+        pip list
+    - name: Install Requirements from Cache
+      run: |
+        pip --version
+        pip install -r requirements.txt
         pip list
     - name: Lint with flake8
       run: |
@@ -133,7 +138,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: Load Cache
-      uses: actions/cache@v4.1.2
+      uses: actions/cache/load@v4.1.2
       with:
         path: .venv
         key: ${{ matrix.os }}-python-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
@@ -148,6 +153,9 @@ jobs:
       if: ${{ matrix.os == 'windows-latest' }}
       run: |
         .\.venv\Scripts\activate
+    - name: Install Requirements from Cache
+      run: |
+        pip install -r requirements.txt
     - name: PyInstaller Action
       uses: Martin005/pyinstaller-action@v1.2.0
       with:
