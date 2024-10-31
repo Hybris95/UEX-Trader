@@ -26,12 +26,12 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: Python VENV (Linux)
-      if: ${{ matrix.os == "ubuntu-latest" }}
+      if: ${{ matrix.os == 'ubuntu-latest' }}
       run: |
         python -m venv .venv
         source .venv/bin/activate
     - name: Python VENV (Windows)
-      if: ${{ matrix.os == "windows-latest" }}
+      if: ${{ matrix.os == 'windows-latest' }}
       run: |
         python -m venv .venv
         .\.venv\Scripts\activate
