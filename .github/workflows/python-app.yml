@@ -100,11 +100,9 @@ jobs:
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=.venv,build,dist
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=.venv,build,dist
-    - name: Install xvfb
-      run: sudo apt-get install -y xvfb libxcb-xinerama0
     - name: Test with pytest (isolated) & xvfb
       run: |
-        xvfb-run -a pytest --isolate --disable-warnings -v
+        pytest --disable-warnings -v
         EXIT_CODE=$?
         if [ $EXIT_CODE -eq 139 ] ; then
           echo "Segmentation fault occured. Exit with code 0."
