@@ -226,7 +226,8 @@ class BestTradeRouteTab(QWidget):
                 if terminal.get("type") == "commodity" and terminal.get("is_available") == 1]
 
     async def fetch_systems(self, origin_system_id, max_bounce):
-        params = {} # TODO - Return systems linked to origin_system_id with a maximum of "max_bounce" hops - API does not give this for now
+        params = {}
+        # TODO - Return systems linked to origin_system_id with a maximum of "max_bounce" hops - API does not give this for now
         systems = await self.api.fetch_data("/star_systems", params=params)
         return [system for system in systems.get("data", [])
                 if system.get("is_available") == 1]
