@@ -37,6 +37,7 @@ jobs:
       run: |
         .\.venv\Scripts\activate
     - name: Cache
+      id: cache
       uses: actions/cache@v4.1.2
       with:
         # A list of files, directories, and wildcard patterns to cache and restore
@@ -48,9 +49,10 @@ jobs:
         # An optional boolean when enabled, allows windows runners to save or restore caches that can be restored or saved respectively on other platforms
         enableCrossOsArchive: false
     - name: Install dependencies
+      if: ${{ steps.cache.outputs.cache-hit == 'false' }}
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install --prefer-binary -r requirements.txt
   test:
     needs: env
     strategy:
@@ -70,7 +72,7 @@ jobs:
       uses: actions/cache@v4.1.2
       with:
         # A list of files, directories, and wildcard patterns to cache and restore
-        path: .venv
+        path: ./.venv/
         # An explicit key for restoring and saving the cache
         key: ${{ matrix.os }}-python-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
         # An ordered multiline string listing the prefix-matched keys, that are used for restoring stale cache if no cache hit occurred for key. Note `cache-hit` returns false in this case.
