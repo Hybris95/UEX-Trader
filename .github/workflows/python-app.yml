@@ -41,7 +41,7 @@ jobs:
       uses: actions/cache@v4.1.2
       with:
         # A list of files, directories, and wildcard patterns to cache and restore
-        path: .venv
+        path: ./.venv/
         # An explicit key for restoring and saving the cache
         key: ${{ matrix.os }}-python-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
         # An ordered multiline string listing the prefix-matched keys, that are used for restoring stale cache if no cache hit occurred for key. Note `cache-hit` returns false in this case.
@@ -136,7 +136,7 @@ jobs:
     - name: Load Cache
       uses: actions/cache@v4.1.2
       with:
-        path: .venv
+        path: ./.venv/
         key: ${{ matrix.os }}-python-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
         restore-keys: ${{ matrix.os }}-python-${{ matrix.python-version }}
         enableCrossOsArchive: false
