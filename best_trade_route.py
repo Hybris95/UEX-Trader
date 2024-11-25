@@ -259,6 +259,27 @@ class BestTradeRouteTab(QWidget):
                                            + self.translation_manager.get_translation("unit_minute",
                                                                                       self.config_manager.get_lang())
                                            + ")", "sell_latest_update")
+        self.sorting_options_combo.addItem(self.translation_manager.get_translation("total_margin_by_distance",
+                                                                                    self.config_manager.get_lang())
+                                           + " ("
+                                           + self.translation_manager.get_translation("uec",
+                                                                                      self.config_manager.get_lang())
+                                           + "/"
+                                           + self.translation_manager.get_translation("km",
+                                                                                      self.config_manager.get_lang())
+                                           + ")", "total_margin_by_distance")
+        self.sorting_options_combo.addItem(self.translation_manager.get_translation("unit_margin_by_distance",
+                                                                                    self.config_manager.get_lang())
+                                           + " ("
+                                           + self.translation_manager.get_translation("uec",
+                                                                                      self.config_manager.get_lang())
+                                           + "/"
+                                           + self.translation_manager.get_translation("scu",
+                                                                                      self.config_manager.get_lang())
+                                           + "/"
+                                           + self.translation_manager.get_translation("km",
+                                                                                      self.config_manager.get_lang())
+                                           + ")", "unit_margin_by_distance")
         self.sorting_options_combo.setCurrentIndex(0)
         self.sorting_options_combo.currentIndexChanged.connect(
             lambda: asyncio.ensure_future(self.update_page_items())
@@ -710,6 +731,27 @@ class BestTradeRouteTab(QWidget):
         QApplication.processEvents()
         return trade_routes
 
+    async def check_validity(self, commodity_route):
+        if self.filter_public_hangars_checkbox.isChecked():
+            if not commodity_route.get("is_space_station_origin", 0)\
+               and not commodity_route.get("is_space_station_destination", 0):
+                return False
+            terminal_origin = await self.api.fetch_terminals(commodity_route.get("id_star_system_origin"),
+                                                             commodity_route.get("id_planet_origin"),
+                                                             commodity_route.get("id_terminal_origin"))
+            if (not terminal_origin[0].get("city_name")):
+                return False
+            terminal_destination = await self.api.fetch_terminals(commodity_route.get("id_star_system_destination"),
+                                                                  commodity_route.get("id_planet_destination"),
+                                                                  commodity_route.get("id_terminal_destination"))
+            if not terminal_destination[0].get("city_name"):
+                return False
+        if self.filter_space_only_checkbox.isChecked():
+            if not commodity_route.get("is_space_station_origin", 0)\
+               or not commodity_route.get("is_space_station_destination", 0):
+                return False
+        return True
+
     async def process_trade_route_users(self, commodities_routes, max_scu, max_investment):
         await self.ensure_initialized()
         sorted_routes = []
@@ -719,24 +761,8 @@ class BestTradeRouteTab(QWidget):
         for commodity_route in commodities_routes:
             actionProgress += 1
             self.progress_bar.setValue(actionProgress)
-            if self.filter_public_hangars_checkbox.isChecked():
-                if not commodity_route.get("is_space_station_origin", 0)\
-                   and not commodity_route.get("is_space_station_destination", 0):
-                    continue
-                terminal_origin = await self.api.fetch_terminals(commodity_route.get("id_star_system_origin"),
-                                                                 commodity_route.get("id_planet_origin"),
-                                                                 commodity_route.get("id_terminal_origin"))
-                if (not terminal_origin[0].get("city_name")):
-                    continue
-                terminal_destination = await self.api.fetch_terminals(commodity_route.get("id_star_system_destination"),
-                                                                      commodity_route.get("id_planet_destination"),
-                                                                      commodity_route.get("id_terminal_destination"))
-                if not terminal_destination[0].get("city_name"):
-                    continue
-            if self.filter_space_only_checkbox.isChecked():
-                if not commodity_route.get("is_space_station_origin", 0)\
-                   or not commodity_route.get("is_space_station_destination", 0):
-                    continue
+            if not (await self.check_validity(commodity_route)):
+                continue
 
             available_scu = max_scu if self.ignore_stocks_checkbox.isChecked() else commodity_route.get("scu_origin", 0)
             demand_scu = max_scu if self.ignore_demand_checkbox.isChecked() else commodity_route.get("scu_destination", 0)
@@ -754,7 +780,14 @@ class BestTradeRouteTab(QWidget):
             investment = price_buy * max_buyable_scu
             unit_margin = (price_sell - price_buy)
             total_margin = unit_margin * max_buyable_scu
+            if total_margin <= 0:
+                continue
             profit_margin = unit_margin / price_buy
+            distance = await self.api.fetch_distance(commodity_route["id_terminal_origin"],
+                                                     commodity_route["id_terminal_destination"],
+                                                     commodity_route["id_commodity"])
+            total_margin_by_distance = total_margin / distance
+            unit_margin_by_distance = unit_margin / distance
 
             sorted_routes.append({
                 "departure": commodity_route["origin_terminal_name"],
@@ -784,7 +817,10 @@ class BestTradeRouteTab(QWidget):
                 "departure_planet_id": commodity_route["id_planet_origin"],
                 "arrival_planet_id": commodity_route["id_planet_destination"],
                 "commodity_id": commodity_route["id_commodity"],
-                "max_buyable_scu": max_buyable_scu
+                "max_buyable_scu": max_buyable_scu,
+                "distance": distance,
+                "total_margin_by_distance": str(total_margin_by_distance),
+                "unit_margin_by_distance": str(unit_margin_by_distance)
             })
         return sorted_routes
 
@@ -823,7 +859,14 @@ class BestTradeRouteTab(QWidget):
         investment = price_buy * max_buyable_scu
         unit_margin = (price_sell - price_buy)
         total_margin = unit_margin * max_buyable_scu
+        if total_margin <= 0:
+            return route
         profit_margin = unit_margin / price_buy
+        distance = await self.api.fetch_distance(buy_commodity["id_terminal"],
+                                                 sell_commodity["id_terminal"],
+                                                 buy_commodity.get("id_commodity"))
+        total_margin_by_distance = total_margin / distance
+        unit_margin_by_distance = unit_margin / distance
 
         buy_update = buy_commodity["date_modified"]
         sell_update = sell_commodity["date_modified"]
@@ -859,7 +902,10 @@ class BestTradeRouteTab(QWidget):
             "buy_latest_update": str(buy_commodity["date_modified"]),
             "sell_latest_update": str(sell_commodity["date_modified"]),
             "oldest_update": str(buy_update) if buy_update < sell_update else str(sell_update),
-            "latest_update": str(buy_update) if buy_update > sell_update else str(sell_update)
+            "latest_update": str(buy_update) if buy_update > sell_update else str(sell_update),
+            "distance": distance,
+            "total_margin_by_distance": str(total_margin_by_distance),
+            "unit_margin_by_distance": str(unit_margin_by_distance)
         }
         return route
 
