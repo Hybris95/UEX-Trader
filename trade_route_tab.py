@@ -113,9 +113,7 @@ class TradeRouteTab(QWidget):
             + " ("
             + self.translation_manager.get_translation("days",
                                                        self.config_manager.get_lang())
-            + ") - "
-            + self.translation_manager.get_translation("not_user_trades",
-                                                       self.config_manager.get_lang()))
+            + ")")
         layout.addWidget(QLabel(self.translation_manager.get_translation("maximum",
                                                                          self.config_manager.get_lang())
                                 + " "
@@ -126,6 +124,31 @@ class TradeRouteTab(QWidget):
                                                                            self.config_manager.get_lang())
                                 + "):"))
         layout.addWidget(self.max_outdated_input)
+        self.min_trade_profit_input = QLineEdit()
+        self.min_trade_profit_input.setPlaceholderText(
+            self.translation_manager.get_translation("enter",
+                                                     self.config_manager.get_lang())
+            + " "
+            + self.translation_manager.get_translation("minimum",
+                                                       self.config_manager.get_lang())
+            + " "
+            + self.translation_manager.get_translation("trade_columns_total_margin",
+                                                       self.config_manager.get_lang())
+            + " ("
+            + self.translation_manager.get_translation("uec",
+                                                       self.config_manager.get_lang())
+            + ")")
+        self.min_trade_profit_input.setText("8000")
+        layout.addWidget(QLabel(self.translation_manager.get_translation("minimum",
+                                                                         self.config_manager.get_lang())
+                                + " "
+                                + self.translation_manager.get_translation("trade_columns_total_margin",
+                                                                           self.config_manager.get_lang())
+                                + " ("
+                                + self.translation_manager.get_translation("uec",
+                                                                           self.config_manager.get_lang())
+                                + "):"))
+        layout.addWidget(self.min_trade_profit_input)
         self.departure_system_combo = QComboBox()
         self.departure_system_combo.currentIndexChanged.connect(lambda: asyncio.ensure_future(self.update_planets()))
         layout.addWidget(QLabel(self.translation_manager.get_translation("departure_system",
@@ -384,6 +407,7 @@ class TradeRouteTab(QWidget):
             (max_scu,
              max_investment,
              max_outdated_days,
+             min_trade_profit,
              departure_system_id,
              departure_planet_id,
              departure_terminal_id
@@ -396,7 +420,13 @@ class TradeRouteTab(QWidget):
                 return
 
             self.current_trades = await self.fetch_and_process_departure_commodities(
-                departure_terminal_id, max_scu, max_investment, max_outdated_days, departure_system_id, departure_planet_id
+                departure_terminal_id,
+                max_scu,
+                max_investment,
+                max_outdated_days,
+                min_trade_profit,
+                departure_system_id,
+                departure_planet_id
             )
 
             await self.update_trade_route_table(self.current_trades, self.columns, quick=False)
@@ -416,13 +446,27 @@ class TradeRouteTab(QWidget):
         max_scu = int(self.max_scu_input.text()) if self.max_scu_input.text() else sys.maxsize
         max_investment = float(self.max_investment_input.text()) if self.max_investment_input.text() else sys.maxsize
         max_outdated_days = int(self.max_outdated_input.text()) if self.max_outdated_input.text() else sys.maxsize
+        min_trade_profit = int(self.min_trade_profit_input.text()) if self.min_trade_profit_input.text() else 0
         departure_system_id = self.departure_system_combo.currentData()
         departure_planet_id = self.departure_planet_combo.currentData()
         departure_terminal_id = self.departure_terminal_combo.currentData()
-        return max_scu, max_investment, max_outdated_days, departure_system_id, departure_planet_id, departure_terminal_id
+        return (max_scu,
+                max_investment,
+                max_outdated_days,
+                min_trade_profit,
+                departure_system_id,
+                departure_planet_id,
+                departure_terminal_id)
 
     async def fetch_and_process_departure_commodities(
-        self, departure_terminal_id, max_scu, max_investment, max_outdated_days, departure_system_id, departure_planet_id
+        self,
+        departure_terminal_id,
+        max_scu,
+        max_investment,
+        max_outdated_days,
+        min_trade_profit,
+        departure_system_id,
+        departure_planet_id
     ):
         await self.ensure_initialized()
         trade_routes = []
@@ -452,8 +496,8 @@ class TradeRouteTab(QWidget):
             )
             trade_routes.extend(await self.process_arrival_commodities(
                 arrival_commodities, departure_commodity, max_scu, max_investment,
-                max_outdated_days, departure_system_id,
-                departure_planet_id, departure_terminal_id
+                max_outdated_days, min_trade_profit,
+                departure_system_id, departure_planet_id, departure_terminal_id
             ))
             await self.update_trade_route_table(trade_routes, self.columns)
         self.main_progress_bar.setValue(actionProgress)
@@ -461,7 +505,7 @@ class TradeRouteTab(QWidget):
 
     async def process_arrival_commodities(
         self, arrival_commodities, departure_commodity, max_scu, max_investment, max_outdated_days,
-        departure_system_id, departure_planet_id, departure_terminal_id
+        min_trade_profit, departure_system_id, departure_planet_id, departure_terminal_id
     ):
         await self.ensure_initialized()
         arrival_commodities = arrival_commodities.get("data", [])
@@ -485,7 +529,7 @@ class TradeRouteTab(QWidget):
                 continue
             trade_route = await self.calculate_trade_route_details(
                 arrival_commodity, departure_commodity, max_scu, max_investment, max_outdated_days,
-                departure_system_id, departure_planet_id, departure_terminal_id
+                min_trade_profit, departure_system_id, departure_planet_id, departure_terminal_id
             )
             if trade_route:
                 trade_routes.append(trade_route)
@@ -494,7 +538,7 @@ class TradeRouteTab(QWidget):
 
     async def calculate_trade_route_details(
         self, arrival_commodity, departure_commodity, max_scu, max_investment, max_outdated_days,
-        departure_system_id, departure_planet_id, departure_terminal_id
+        min_trade_profit, departure_system_id, departure_planet_id, departure_terminal_id
     ):
         await self.ensure_initialized()
         buy_price = departure_commodity.get("price_buy", 0)
@@ -522,7 +566,7 @@ class TradeRouteTab(QWidget):
         investment = buy_price * max_buyable_scu
         unit_margin = (sell_price - buy_price)
         total_margin = unit_margin * max_buyable_scu
-        if total_margin <= 0:
+        if (total_margin <= 0) or (total_margin < min_trade_profit):
             return None
         profit_margin = unit_margin / buy_price
         arrival_terminal = await self.api.fetch_data("/terminals", params={'id': arrival_commodity.get("id_terminal")})

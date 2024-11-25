@@ -140,6 +140,31 @@ class BestTradeRouteTab(QWidget):
                                                                            self.config_manager.get_lang())
                                 + "):"))
         layout.addWidget(self.max_outdated_input)
+        self.min_trade_profit_input = QLineEdit()
+        self.min_trade_profit_input.setPlaceholderText(
+            self.translation_manager.get_translation("enter",
+                                                     self.config_manager.get_lang())
+            + " "
+            + self.translation_manager.get_translation("minimum",
+                                                       self.config_manager.get_lang())
+            + " "
+            + self.translation_manager.get_translation("trade_columns_total_margin",
+                                                       self.config_manager.get_lang())
+            + " ("
+            + self.translation_manager.get_translation("uec",
+                                                       self.config_manager.get_lang())
+            + ")")
+        self.min_trade_profit_input.setText("8000")
+        layout.addWidget(QLabel(self.translation_manager.get_translation("minimum",
+                                                                         self.config_manager.get_lang())
+                                + " "
+                                + self.translation_manager.get_translation("trade_columns_total_margin",
+                                                                           self.config_manager.get_lang())
+                                + " ("
+                                + self.translation_manager.get_translation("uec",
+                                                                           self.config_manager.get_lang())
+                                + "):"))
+        layout.addWidget(self.min_trade_profit_input)
         self.departure_system_combo = QComboBox()
         self.departure_system_combo.currentIndexChanged.connect(
             lambda: asyncio.ensure_future(self.update_departure_planets())
@@ -436,7 +461,7 @@ class BestTradeRouteTab(QWidget):
         self.main_progress_bar.setMaximum(5)
 
         try:
-            max_scu, max_investment, max_outdated_in_days = self.get_input_values()
+            max_scu, max_investment, max_outdated_in_days, min_trade_profit = self.get_input_values()
             departure_system_id, departure_planet_id, destination_system_id, destination_planet_id = self.get_selected_ids()
 
             if not departure_system_id:
@@ -494,7 +519,8 @@ class BestTradeRouteTab(QWidget):
 
             self.current_trades = await self.calculate_trade_routes_users(commodities_routes,
                                                                           max_scu,
-                                                                          max_investment)
+                                                                          max_investment,
+                                                                          min_trade_profit)
             self.logger.log(logging.INFO, f"{len(self.current_trades)} routes found")
             currentProgress += 1
             self.main_progress_bar.setValue(currentProgress)
@@ -528,7 +554,7 @@ class BestTradeRouteTab(QWidget):
 
         try:
             # [Recover entry parameters]
-            max_scu, max_investment, max_outdated_in_days = self.get_input_values()
+            max_scu, max_investment, max_outdated_in_days, min_trade_profit = self.get_input_values()
             departure_system_id, departure_planet_id, destination_system_id, destination_planet_id = self.get_selected_ids()
             ignore_stocks = self.ignore_stocks_checkbox.isChecked()
             ignore_demand = self.ignore_demand_checkbox.isChecked()
@@ -601,7 +627,7 @@ class BestTradeRouteTab(QWidget):
             self.current_trades = await self.calculate_trade_routes_rework(buy_commodities, sell_commodities,
                                                                            max_scu, max_investment,
                                                                            ignore_stocks, ignore_demand,
-                                                                           max_outdated_in_days)
+                                                                           max_outdated_in_days, min_trade_profit)
             self.logger.log(logging.INFO, f"{len(self.current_trades)} Trade routes found.")
             currentProgress += 1
             self.main_progress_bar.setValue(currentProgress)
@@ -622,7 +648,8 @@ class BestTradeRouteTab(QWidget):
         max_scu = int(self.max_scu_input.text()) if self.max_scu_input.text() else sys.maxsize
         max_investment = float(self.max_investment_input.text()) if self.max_investment_input.text() else sys.maxsize
         max_outdated_in_days = int(self.max_outdated_input.text()) if self.max_outdated_input.text() else sys.maxsize
-        return max_scu, max_investment, max_outdated_in_days
+        min_trade_profit = int(self.min_trade_profit_input.text()) if self.min_trade_profit_input.text() else 0
+        return max_scu, max_investment, max_outdated_in_days, min_trade_profit
 
     def get_selected_ids(self):
         departure_system_id = self.departure_system_combo.currentData()
@@ -638,11 +665,13 @@ class BestTradeRouteTab(QWidget):
     async def calculate_trade_routes_users(self,
                                            commodities_routes,
                                            max_scu,
-                                           max_investment):
+                                           max_investment,
+                                           min_trade_profit):
         await self.ensure_initialized()
         trade_routes = await self.process_trade_route_users(commodities_routes,
                                                             max_scu,
-                                                            max_investment)
+                                                            max_investment,
+                                                            min_trade_profit)
         await self.display_trade_routes(trade_routes, self.columns, quick=False)
         # Allow UI to update during the search
         QApplication.processEvents()
@@ -715,7 +744,8 @@ class BestTradeRouteTab(QWidget):
 
     async def calculate_trade_routes_rework(self, buy_commodities, sell_commodities,
                                             max_scu, max_investment, ignore_stocks,
-                                            ignore_demand, max_outdated_in_days):
+                                            ignore_demand, max_outdated_in_days,
+                                            min_trade_profit):
         await self.ensure_initialized()
         # [Calculate trade routes]
         trade_routes = []
@@ -734,6 +764,7 @@ class BestTradeRouteTab(QWidget):
                     continue
                 route = await self.process_single_trade_route(buy_commodity, sell_commodity, max_scu,
                                                               max_investment, max_outdated_in_days,
+                                                              min_trade_profit,
                                                               ignore_stocks, ignore_demand)
                 if route:
                     trade_routes.append(route)
@@ -768,7 +799,8 @@ class BestTradeRouteTab(QWidget):
     async def process_trade_route_users(self,
                                         commodities_routes,
                                         max_scu,
-                                        max_investment):
+                                        max_investment,
+                                        min_trade_profit):
         await self.ensure_initialized()
         sorted_routes = []
         universe = len(commodities_routes)
@@ -796,7 +828,7 @@ class BestTradeRouteTab(QWidget):
             investment = price_buy * max_buyable_scu
             unit_margin = (price_sell - price_buy)
             total_margin = unit_margin * max_buyable_scu
-            if total_margin <= 0:
+            if (total_margin <= 0) or (total_margin < min_trade_profit):
                 continue
             profit_margin = unit_margin / price_buy
             distance = await self.api.fetch_distance(commodity_route["id_terminal_origin"],
@@ -866,6 +898,7 @@ class BestTradeRouteTab(QWidget):
 
     async def process_single_trade_route(self, buy_commodity, sell_commodity, max_scu=sys.maxsize,
                                          max_investment=sys.maxsize, max_outdated_in_days=sys.maxsize,
+                                         min_trade_profit=0,
                                          ignore_stocks=False, ignore_demand=False):
         await self.ensure_initialized()
         route = None
@@ -896,7 +929,7 @@ class BestTradeRouteTab(QWidget):
         investment = price_buy * max_buyable_scu
         unit_margin = (price_sell - price_buy)
         total_margin = unit_margin * max_buyable_scu
-        if total_margin <= 0:
+        if (total_margin <= 0) or (total_margin < min_trade_profit):
             return route
         profit_margin = unit_margin / price_buy
         distance = await self.api.fetch_distance(buy_commodity["id_terminal"],
