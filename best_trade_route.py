@@ -11,7 +11,7 @@ from api import API
 from config_manager import ConfigManager
 from trade_tab import TradeTab
 from translation_manager import TranslationManager
-from tools import create_async_callback
+from tools import create_async_callback, days_difference_from_now
 
 
 class BestTradeRouteTab(QWidget):
@@ -113,6 +113,33 @@ class BestTradeRouteTab(QWidget):
                                                                            self.config_manager.get_lang())
                                 + "):"))
         layout.addWidget(self.max_investment_input)
+        self.max_outdated_input = QLineEdit()
+        self.max_outdated_input.setPlaceholderText(
+            self.translation_manager.get_translation("enter",
+                                                     self.config_manager.get_lang())
+            + " "
+            + self.translation_manager.get_translation("maximum",
+                                                       self.config_manager.get_lang())
+            + " "
+            + self.translation_manager.get_translation("outdated",
+                                                       self.config_manager.get_lang())
+            + " ("
+            + self.translation_manager.get_translation("days",
+                                                       self.config_manager.get_lang())
+            + ") - "
+            + self.translation_manager.get_translation("not_user_trades",
+                                                       self.config_manager.get_lang())
+            )
+        layout.addWidget(QLabel(self.translation_manager.get_translation("maximum",
+                                                                         self.config_manager.get_lang())
+                                + " "
+                                + self.translation_manager.get_translation("outdated",
+                                                                           self.config_manager.get_lang())
+                                + " ("
+                                + self.translation_manager.get_translation("days",
+                                                                           self.config_manager.get_lang())
+                                + "):"))
+        layout.addWidget(self.max_outdated_input)
         self.departure_system_combo = QComboBox()
         self.departure_system_combo.currentIndexChanged.connect(
             lambda: asyncio.ensure_future(self.update_departure_planets())
@@ -235,30 +262,6 @@ class BestTradeRouteTab(QWidget):
                                            + self.translation_manager.get_translation("unit_qty",
                                                                                       self.config_manager.get_lang())
                                            + ")", "buy_scu")
-        self.sorting_options_combo.addItem(self.translation_manager.get_translation("sort_oldest_update",
-                                                                                    self.config_manager.get_lang())
-                                           + " ("
-                                           + self.translation_manager.get_translation("unit_minute",
-                                                                                      self.config_manager.get_lang())
-                                           + ")", "oldest_update")
-        self.sorting_options_combo.addItem(self.translation_manager.get_translation("sort_latest_update",
-                                                                                    self.config_manager.get_lang())
-                                           + " ("
-                                           + self.translation_manager.get_translation("unit_minute",
-                                                                                      self.config_manager.get_lang())
-                                           + ")", "latest_update")
-        self.sorting_options_combo.addItem(self.translation_manager.get_translation("sort_buy_latest",
-                                                                                    self.config_manager.get_lang())
-                                           + " ("
-                                           + self.translation_manager.get_translation("unit_minute",
-                                                                                      self.config_manager.get_lang())
-                                           + ")", "buy_latest_update")
-        self.sorting_options_combo.addItem(self.translation_manager.get_translation("sort_sell_latest",
-                                                                                    self.config_manager.get_lang())
-                                           + " ("
-                                           + self.translation_manager.get_translation("unit_minute",
-                                                                                      self.config_manager.get_lang())
-                                           + ")", "sell_latest_update")
         self.sorting_options_combo.addItem(self.translation_manager.get_translation("total_margin_by_distance",
                                                                                     self.config_manager.get_lang())
                                            + " ("
@@ -433,7 +436,7 @@ class BestTradeRouteTab(QWidget):
         self.main_progress_bar.setMaximum(5)
 
         try:
-            max_scu, max_investment = self.get_input_values()
+            max_scu, max_investment, max_outdated_in_days = self.get_input_values()
             departure_system_id, departure_planet_id, destination_system_id, destination_planet_id = self.get_selected_ids()
 
             if not departure_system_id:
@@ -489,7 +492,9 @@ class BestTradeRouteTab(QWidget):
             currentProgress += 1
             self.main_progress_bar.setValue(currentProgress)
 
-            self.current_trades = await self.calculate_trade_routes_users(commodities_routes, max_scu, max_investment)
+            self.current_trades = await self.calculate_trade_routes_users(commodities_routes,
+                                                                          max_scu,
+                                                                          max_investment)
             self.logger.log(logging.INFO, f"{len(self.current_trades)} routes found")
             currentProgress += 1
             self.main_progress_bar.setValue(currentProgress)
@@ -523,7 +528,7 @@ class BestTradeRouteTab(QWidget):
 
         try:
             # [Recover entry parameters]
-            max_scu, max_investment = self.get_input_values()
+            max_scu, max_investment, max_outdated_in_days = self.get_input_values()
             departure_system_id, departure_planet_id, destination_system_id, destination_planet_id = self.get_selected_ids()
             ignore_stocks = self.ignore_stocks_checkbox.isChecked()
             ignore_demand = self.ignore_demand_checkbox.isChecked()
@@ -595,7 +600,8 @@ class BestTradeRouteTab(QWidget):
 
             self.current_trades = await self.calculate_trade_routes_rework(buy_commodities, sell_commodities,
                                                                            max_scu, max_investment,
-                                                                           ignore_stocks, ignore_demand)
+                                                                           ignore_stocks, ignore_demand,
+                                                                           max_outdated_in_days)
             self.logger.log(logging.INFO, f"{len(self.current_trades)} Trade routes found.")
             currentProgress += 1
             self.main_progress_bar.setValue(currentProgress)
@@ -615,7 +621,8 @@ class BestTradeRouteTab(QWidget):
     def get_input_values(self):
         max_scu = int(self.max_scu_input.text()) if self.max_scu_input.text() else sys.maxsize
         max_investment = float(self.max_investment_input.text()) if self.max_investment_input.text() else sys.maxsize
-        return max_scu, max_investment
+        max_outdated_in_days = int(self.max_outdated_input.text()) if self.max_outdated_input.text() else sys.maxsize
+        return max_scu, max_investment, max_outdated_in_days
 
     def get_selected_ids(self):
         departure_system_id = self.departure_system_combo.currentData()
@@ -628,9 +635,14 @@ class BestTradeRouteTab(QWidget):
             destination_planet_id = None
         return departure_system_id, departure_planet_id, destination_system_id, destination_planet_id
 
-    async def calculate_trade_routes_users(self, commodities_routes, max_scu, max_investment):
+    async def calculate_trade_routes_users(self,
+                                           commodities_routes,
+                                           max_scu,
+                                           max_investment):
         await self.ensure_initialized()
-        trade_routes = await self.process_trade_route_users(commodities_routes, max_scu, max_investment)
+        trade_routes = await self.process_trade_route_users(commodities_routes,
+                                                            max_scu,
+                                                            max_investment)
         await self.display_trade_routes(trade_routes, self.columns, quick=False)
         # Allow UI to update during the search
         QApplication.processEvents()
@@ -703,7 +715,7 @@ class BestTradeRouteTab(QWidget):
 
     async def calculate_trade_routes_rework(self, buy_commodities, sell_commodities,
                                             max_scu, max_investment, ignore_stocks,
-                                            ignore_demand):
+                                            ignore_demand, max_outdated_in_days):
         await self.ensure_initialized()
         # [Calculate trade routes]
         trade_routes = []
@@ -721,7 +733,8 @@ class BestTradeRouteTab(QWidget):
                 if buy_commodity["id_terminal"] == sell_commodity["id_terminal"]:
                     continue
                 route = await self.process_single_trade_route(buy_commodity, sell_commodity, max_scu,
-                                                              max_investment, ignore_stocks, ignore_demand)
+                                                              max_investment, max_outdated_in_days,
+                                                              ignore_stocks, ignore_demand)
                 if route:
                     trade_routes.append(route)
                     await self.display_trade_routes(trade_routes, self.columns)
@@ -731,7 +744,7 @@ class BestTradeRouteTab(QWidget):
         QApplication.processEvents()
         return trade_routes
 
-    async def check_validity(self, commodity_route):
+    async def check_validity_users(self, commodity_route):
         if self.filter_public_hangars_checkbox.isChecked():
             if not commodity_route.get("is_space_station_origin", 0)\
                and not commodity_route.get("is_space_station_destination", 0):
@@ -752,7 +765,10 @@ class BestTradeRouteTab(QWidget):
                 return False
         return True
 
-    async def process_trade_route_users(self, commodities_routes, max_scu, max_investment):
+    async def process_trade_route_users(self,
+                                        commodities_routes,
+                                        max_scu,
+                                        max_investment):
         await self.ensure_initialized()
         sorted_routes = []
         universe = len(commodities_routes)
@@ -761,7 +777,7 @@ class BestTradeRouteTab(QWidget):
         for commodity_route in commodities_routes:
             actionProgress += 1
             self.progress_bar.setValue(actionProgress)
-            if not (await self.check_validity(commodity_route)):
+            if not (await self.check_validity_users(commodity_route)):
                 continue
 
             available_scu = max_scu if self.ignore_stocks_checkbox.isChecked() else commodity_route.get("scu_origin", 0)
@@ -824,22 +840,43 @@ class BestTradeRouteTab(QWidget):
             })
         return sorted_routes
 
-    async def process_single_trade_route(self, buy_commodity, sell_commodity, max_scu=sys.maxsize,
-                                         max_investment=sys.maxsize, ignore_stocks=False, ignore_demand=False):
-        await self.ensure_initialized()
-        route = None
+    async def check_validity(self, buy_commodity, sell_commodity, max_scu, max_investment, max_outdated_in_days):
         if buy_commodity["id_commodity"] != sell_commodity["id_commodity"]:
-            return route
+            return False
         if buy_commodity["id_terminal"] == sell_commodity["id_terminal"]:
-            return route
+            return False
         if buy_commodity["id"] == sell_commodity["id"]:
-            return route
+            return False
+        buy_update = buy_commodity["date_modified"]
+        sell_update = sell_commodity["date_modified"]
+        buy_update_days = days_difference_from_now(buy_update)
+        sell_update_days = days_difference_from_now(sell_update)
+        if (buy_update_days > max_outdated_in_days) or (sell_update_days > max_outdated_in_days):
+            return False
         if max_scu < 0:
             # TODO - Send Exception instead
-            return route
+            return False
         if max_investment < 0:
             # TODO - Send Exception instead
-            return route
+            return False
+        if max_outdated_in_days < 0:
+            # TODO - Send Exception instead
+            return False
+        return True
+
+    async def process_single_trade_route(self, buy_commodity, sell_commodity, max_scu=sys.maxsize,
+                                         max_investment=sys.maxsize, max_outdated_in_days=sys.maxsize,
+                                         ignore_stocks=False, ignore_demand=False):
+        await self.ensure_initialized()
+        route = None
+        if not (await self.check_validity(buy_commodity,
+                                          sell_commodity,
+                                          max_scu,
+                                          max_investment,
+                                          max_outdated_in_days)):
+            return None
+        buy_update = buy_commodity["date_modified"]
+        sell_update = sell_commodity["date_modified"]
 
         available_scu = max_scu if ignore_stocks else buy_commodity.get("scu_buy", 0)
         scu_sell_stock = sell_commodity.get("scu_sell_stock", 0)
@@ -868,8 +905,6 @@ class BestTradeRouteTab(QWidget):
         total_margin_by_distance = total_margin / distance
         unit_margin_by_distance = unit_margin / distance
 
-        buy_update = buy_commodity["date_modified"]
-        sell_update = sell_commodity["date_modified"]
         route = {
             "departure": buy_commodity["terminal_name"],
             "destination": sell_commodity["terminal_name"],
