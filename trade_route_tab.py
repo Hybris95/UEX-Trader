@@ -232,6 +232,27 @@ class TradeRouteTab(QWidget):
                                            + self.translation_manager.get_translation("unit_minute",
                                                                                       self.config_manager.get_lang())
                                            + ")", "sell_latest_update")
+        self.sorting_options_combo.addItem(self.translation_manager.get_translation("total_margin_by_distance",
+                                                                                    self.config_manager.get_lang())
+                                           + " ("
+                                           + self.translation_manager.get_translation("uec",
+                                                                                      self.config_manager.get_lang())
+                                           + "/"
+                                           + self.translation_manager.get_translation("km",
+                                                                                      self.config_manager.get_lang())
+                                           + ")", "total_margin_by_distance")
+        self.sorting_options_combo.addItem(self.translation_manager.get_translation("unit_margin_by_distance",
+                                                                                    self.config_manager.get_lang())
+                                           + " ("
+                                           + self.translation_manager.get_translation("uec",
+                                                                                      self.config_manager.get_lang())
+                                           + "/"
+                                           + self.translation_manager.get_translation("scu",
+                                                                                      self.config_manager.get_lang())
+                                           + "/"
+                                           + self.translation_manager.get_translation("km",
+                                                                                      self.config_manager.get_lang())
+                                           + ")", "unit_margin_by_distance")
         self.sorting_options_combo.setCurrentIndex(0)
         self.sorting_options_combo.currentIndexChanged.connect(
             lambda: asyncio.ensure_future(self.update_page_items())
@@ -486,6 +507,8 @@ class TradeRouteTab(QWidget):
         investment = buy_price * max_buyable_scu
         unit_margin = (sell_price - buy_price)
         total_margin = unit_margin * max_buyable_scu
+        if total_margin <= 0:
+            return None
         profit_margin = unit_margin / buy_price
         arrival_terminal = await self.api.fetch_data("/terminals", params={'id': arrival_commodity.get("id_terminal")})
         arrival_terminal_mcs = arrival_terminal.get("data")[0].get("mcs")
@@ -503,6 +526,11 @@ class TradeRouteTab(QWidget):
         ) + " / " + arrival_commodity.get("terminal_name")
         departure_modified = departure_commodity["date_modified"]
         arrival_modified = arrival_commodity["date_modified"]
+        distance = await self.api.fetch_distance(departure_commodity["id_terminal"],
+                                                 arrival_commodity["id_terminal"],
+                                                 departure_commodity["id_commodity"])
+        total_margin_by_distance = total_margin / distance
+        unit_margin_by_distance = unit_margin / distance
         return {
             "destination": destination,
             "commodity": departure_commodity.get("commodity_name"),
@@ -535,7 +563,10 @@ class TradeRouteTab(QWidget):
             "buy_latest_update": str(departure_commodity["date_modified"]),
             "sell_latest_update": str(departure_commodity["date_modified"]),
             "oldest_update": str(departure_modified) if departure_modified < arrival_modified else str(arrival_modified),
-            "latest_update": str(departure_modified) if departure_modified > arrival_modified else str(arrival_modified)
+            "latest_update": str(departure_modified) if departure_modified > arrival_modified else str(arrival_modified),
+            "distance": distance,
+            "total_margin_by_distance": str(total_margin_by_distance),
+            "unit_margin_by_distance": str(unit_margin_by_distance)
         }
 
     async def update_trade_route_table(self, trade_routes, columns, quick=True):
