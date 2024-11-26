@@ -309,6 +309,8 @@ class TradeRouteTab(QWidget):
             for system in systems.get("data", []):
                 if system.get("is_available") == 1:
                     self.departure_system_combo.addItem(system["name"], system["id"])
+                    if system.get("is_default") == 1:
+                        self.departure_system_combo.setCurrentIndex(self.departure_system_combo.count() - 1)
             logging.info("Systems loaded successfully.")
         except Exception as e:
             logging.error(f"Failed to load systems: {e}")
