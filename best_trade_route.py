@@ -361,8 +361,8 @@ class BestTradeRouteTab(QWidget):
         if not system_id:
             return
         try:
-            planets = await self.api.fetch_data("/planets", params={'id_star_system': system_id})
-            for planet in planets.get("data", []):
+            planets = await self.api.fetch_planets(system_id)
+            for planet in planets:
                 self.departure_planet_combo.addItem(planet["name"], planet["id"])
             logging.info("Departure planets loaded successfully.")
         except Exception as e:
@@ -402,14 +402,15 @@ class BestTradeRouteTab(QWidget):
                                                                                        self.config_manager.get_lang()),
                                               "all_planets")
         system_id = self.destination_system_combo.currentData()
-        if not system_id and self.destination_system_combo.currentData() != "all_systems":
+        if not system_id and system_id != "all_systems":
             return
         try:
-            params = {}
-            if self.destination_system_combo.currentData() != "all_systems":
-                params['id_star_system'] = system_id
-            planets = await self.api.fetch_data("/planets", params=params)
-            for planet in planets.get("data", []):
+            planets = []
+            if system_id != "all_systems":
+                planets = await self.api.fetch_planets(system_id)
+            else:
+                planets = await self.api.fetch_planets()
+            for planet in planets:
                 self.destination_planet_combo.addItem(planet["name"], planet["id"])
             logging.info("Destination planets loaded successfully.")
         except Exception as e:
@@ -620,6 +621,7 @@ class BestTradeRouteTab(QWidget):
             self.main_progress_bar.setValue(currentProgress)
 
             sell_commodities = await self.get_sell_commodities_from_commodities_prices(buy_commodities,
+                                                                                       destination_planets,
                                                                                        filter_public_hangars,
                                                                                        filter_space_only)
             self.logger.log(logging.INFO, f"{len(sell_commodities)} Sell Commodities found.")
@@ -659,6 +661,8 @@ class BestTradeRouteTab(QWidget):
         if self.departure_planet_combo.currentData() == "all_planets":
             departure_planet_id = None
         destination_system_id = self.destination_system_combo.currentData()
+        if self.destination_system_combo.currentData() == "all_systems":
+            destination_system_id = None
         destination_planet_id = self.destination_planet_combo.currentData()
         if self.destination_planet_combo.currentData() == "all_planets":
             destination_planet_id = None
@@ -718,6 +722,7 @@ class BestTradeRouteTab(QWidget):
 
     async def get_sell_commodities_from_commodities_prices(self,
                                                            buy_commodities,
+                                                           destination_planets,
                                                            filter_public_hangars=False,
                                                            filter_space_only=False):
         await self.ensure_initialized()
@@ -732,13 +737,19 @@ class BestTradeRouteTab(QWidget):
         actionProgress = 0
         # Get all SELL commodities (for each unique BUY commodity) from /commodities_prices
         for grouped_buy_id in grouped_buy_commodities_ids:
-            sell_commodities.extend([commodity for commodity in await self.api.fetch_commodities_by_id(grouped_buy_id)
-                                    if commodity["price_sell"] > 0
-                                    and (not filter_public_hangars or
-                                         (commodity["city_name"] or
-                                          commodity["space_station_name"]))
-                                    and (not filter_space_only or
-                                         commodity["space_station_name"])])
+            unfiltered_commodities = await self.api.fetch_commodities_by_id(grouped_buy_id)
+            for unfiltered_commodity in unfiltered_commodities:
+                if (unfiltered_commodity["price_sell"] > 0
+                    and (not filter_public_hangars
+                         or (unfiltered_commodity["city_name"]
+                             or unfiltered_commodity["space_station_name"]))
+                    and (not filter_space_only
+                         or unfiltered_commodity["space_station_name"])):
+                    for destination_planet in destination_planets:
+                        if (unfiltered_commodity["id_star_system"] == destination_planet["id_star_system"]
+                            and ((not unfiltered_commodity["id_planet"] and len(destination_planets) > 1)
+                                 or (unfiltered_commodity["id_planet"] == destination_planet["id"]))):
+                            sell_commodities.append(unfiltered_commodity)
             actionProgress += 1
             self.progress_bar.setValue(actionProgress)
         self.logger.log(logging.INFO, f"{len(sell_commodities)} Sell Commodities found.")
