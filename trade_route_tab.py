@@ -13,7 +13,7 @@ from api import API
 from config_manager import ConfigManager
 from trade_tab import TradeTab
 from translation_manager import TranslationManager
-from tools import create_async_callback
+from tools import create_async_callback, days_difference_from_now
 
 
 class TradeRouteTab(QWidget):
@@ -100,6 +100,55 @@ class TradeRouteTab(QWidget):
                                                                            self.config_manager.get_lang())
                                 + "):"))
         layout.addWidget(self.max_investment_input)
+        self.max_outdated_input = QLineEdit()
+        self.max_outdated_input.setPlaceholderText(
+            self.translation_manager.get_translation("enter",
+                                                     self.config_manager.get_lang())
+            + " "
+            + self.translation_manager.get_translation("maximum",
+                                                       self.config_manager.get_lang())
+            + " "
+            + self.translation_manager.get_translation("outdated",
+                                                       self.config_manager.get_lang())
+            + " ("
+            + self.translation_manager.get_translation("days",
+                                                       self.config_manager.get_lang())
+            + ")")
+        layout.addWidget(QLabel(self.translation_manager.get_translation("maximum",
+                                                                         self.config_manager.get_lang())
+                                + " "
+                                + self.translation_manager.get_translation("outdated",
+                                                                           self.config_manager.get_lang())
+                                + " ("
+                                + self.translation_manager.get_translation("days",
+                                                                           self.config_manager.get_lang())
+                                + "):"))
+        layout.addWidget(self.max_outdated_input)
+        self.min_trade_profit_input = QLineEdit()
+        self.min_trade_profit_input.setPlaceholderText(
+            self.translation_manager.get_translation("enter",
+                                                     self.config_manager.get_lang())
+            + " "
+            + self.translation_manager.get_translation("minimum",
+                                                       self.config_manager.get_lang())
+            + " "
+            + self.translation_manager.get_translation("trade_columns_total_margin",
+                                                       self.config_manager.get_lang())
+            + " ("
+            + self.translation_manager.get_translation("uec",
+                                                       self.config_manager.get_lang())
+            + ")")
+        self.min_trade_profit_input.setText("8000")
+        layout.addWidget(QLabel(self.translation_manager.get_translation("minimum",
+                                                                         self.config_manager.get_lang())
+                                + " "
+                                + self.translation_manager.get_translation("trade_columns_total_margin",
+                                                                           self.config_manager.get_lang())
+                                + " ("
+                                + self.translation_manager.get_translation("uec",
+                                                                           self.config_manager.get_lang())
+                                + "):"))
+        layout.addWidget(self.min_trade_profit_input)
         self.departure_system_combo = QComboBox()
         self.departure_system_combo.currentIndexChanged.connect(lambda: asyncio.ensure_future(self.update_planets()))
         layout.addWidget(QLabel(self.translation_manager.get_translation("departure_system",
@@ -208,30 +257,27 @@ class TradeRouteTab(QWidget):
                                            + self.translation_manager.get_translation("unit_qty",
                                                                                       self.config_manager.get_lang())
                                            + ")", "buy_scu")
-        self.sorting_options_combo.addItem(self.translation_manager.get_translation("sort_oldest_update",
+        self.sorting_options_combo.addItem(self.translation_manager.get_translation("total_margin_by_distance",
                                                                                     self.config_manager.get_lang())
                                            + " ("
-                                           + self.translation_manager.get_translation("unit_minute",
+                                           + self.translation_manager.get_translation("uec",
                                                                                       self.config_manager.get_lang())
-                                           + ")", "oldest_update")
-        self.sorting_options_combo.addItem(self.translation_manager.get_translation("sort_latest_update",
+                                           + "/"
+                                           + self.translation_manager.get_translation("km",
+                                                                                      self.config_manager.get_lang())
+                                           + ")", "total_margin_by_distance")
+        self.sorting_options_combo.addItem(self.translation_manager.get_translation("unit_margin_by_distance",
                                                                                     self.config_manager.get_lang())
                                            + " ("
-                                           + self.translation_manager.get_translation("unit_minute",
+                                           + self.translation_manager.get_translation("uec",
                                                                                       self.config_manager.get_lang())
-                                           + ")", "latest_update")
-        self.sorting_options_combo.addItem(self.translation_manager.get_translation("sort_buy_latest",
-                                                                                    self.config_manager.get_lang())
-                                           + " ("
-                                           + self.translation_manager.get_translation("unit_minute",
+                                           + "/"
+                                           + self.translation_manager.get_translation("scu",
                                                                                       self.config_manager.get_lang())
-                                           + ")", "buy_latest_update")
-        self.sorting_options_combo.addItem(self.translation_manager.get_translation("sort_sell_latest",
-                                                                                    self.config_manager.get_lang())
-                                           + " ("
-                                           + self.translation_manager.get_translation("unit_minute",
+                                           + "/"
+                                           + self.translation_manager.get_translation("km",
                                                                                       self.config_manager.get_lang())
-                                           + ")", "sell_latest_update")
+                                           + ")", "unit_margin_by_distance")
         self.sorting_options_combo.setCurrentIndex(0)
         self.sorting_options_combo.currentIndexChanged.connect(
             lambda: asyncio.ensure_future(self.update_page_items())
@@ -263,6 +309,8 @@ class TradeRouteTab(QWidget):
             for system in systems.get("data", []):
                 if system.get("is_available") == 1:
                     self.departure_system_combo.addItem(system["name"], system["id"])
+                    if system.get("is_default") == 1:
+                        self.departure_system_combo.setCurrentIndex(self.departure_system_combo.count() - 1)
             logging.info("Systems loaded successfully.")
         except Exception as e:
             logging.error(f"Failed to load systems: {e}")
@@ -358,7 +406,14 @@ class TradeRouteTab(QWidget):
         self.main_progress_bar.setValue(0)
 
         try:
-            max_scu, max_investment, departure_system_id, departure_planet_id, departure_terminal_id = self.validate_inputs()
+            (max_scu,
+             max_investment,
+             max_outdated_days,
+             min_trade_profit,
+             departure_system_id,
+             departure_planet_id,
+             departure_terminal_id
+             ) = self.validate_inputs()
             if not all([departure_system_id, departure_planet_id, departure_terminal_id]):
                 QMessageBox.warning(self, self.translation_manager.get_translation("error_input_error",
                                                                                    self.config_manager.get_lang()),
@@ -367,7 +422,13 @@ class TradeRouteTab(QWidget):
                 return
 
             self.current_trades = await self.fetch_and_process_departure_commodities(
-                departure_terminal_id, max_scu, max_investment, departure_system_id, departure_planet_id
+                departure_terminal_id,
+                max_scu,
+                max_investment,
+                max_outdated_days,
+                min_trade_profit,
+                departure_system_id,
+                departure_planet_id
             )
 
             await self.update_trade_route_table(self.current_trades, self.columns, quick=False)
@@ -386,13 +447,28 @@ class TradeRouteTab(QWidget):
     def validate_inputs(self):
         max_scu = int(self.max_scu_input.text()) if self.max_scu_input.text() else sys.maxsize
         max_investment = float(self.max_investment_input.text()) if self.max_investment_input.text() else sys.maxsize
+        max_outdated_days = int(self.max_outdated_input.text()) if self.max_outdated_input.text() else sys.maxsize
+        min_trade_profit = int(self.min_trade_profit_input.text()) if self.min_trade_profit_input.text() else 0
         departure_system_id = self.departure_system_combo.currentData()
         departure_planet_id = self.departure_planet_combo.currentData()
         departure_terminal_id = self.departure_terminal_combo.currentData()
-        return max_scu, max_investment, departure_system_id, departure_planet_id, departure_terminal_id
+        return (max_scu,
+                max_investment,
+                max_outdated_days,
+                min_trade_profit,
+                departure_system_id,
+                departure_planet_id,
+                departure_terminal_id)
 
     async def fetch_and_process_departure_commodities(
-        self, departure_terminal_id, max_scu, max_investment, departure_system_id, departure_planet_id
+        self,
+        departure_terminal_id,
+        max_scu,
+        max_investment,
+        max_outdated_days,
+        min_trade_profit,
+        departure_system_id,
+        departure_planet_id
     ):
         await self.ensure_initialized()
         trade_routes = []
@@ -421,16 +497,17 @@ class TradeRouteTab(QWidget):
                 f"{departure_commodity.get('commodity_name')}"
             )
             trade_routes.extend(await self.process_arrival_commodities(
-                arrival_commodities, departure_commodity, max_scu, max_investment, departure_system_id,
-                departure_planet_id, departure_terminal_id
+                arrival_commodities, departure_commodity, max_scu, max_investment,
+                max_outdated_days, min_trade_profit,
+                departure_system_id, departure_planet_id, departure_terminal_id
             ))
             await self.update_trade_route_table(trade_routes, self.columns)
         self.main_progress_bar.setValue(actionProgress)
         return trade_routes
 
     async def process_arrival_commodities(
-        self, arrival_commodities, departure_commodity, max_scu, max_investment, departure_system_id,
-        departure_planet_id, departure_terminal_id
+        self, arrival_commodities, departure_commodity, max_scu, max_investment, max_outdated_days,
+        min_trade_profit, departure_system_id, departure_planet_id, departure_terminal_id
     ):
         await self.ensure_initialized()
         arrival_commodities = arrival_commodities.get("data", [])
@@ -453,8 +530,8 @@ class TradeRouteTab(QWidget):
             if self.filter_space_only_checkbox.isChecked() and not arrival_commodity["space_station_name"]:
                 continue
             trade_route = await self.calculate_trade_route_details(
-                arrival_commodity, departure_commodity, max_scu, max_investment, departure_system_id,
-                departure_planet_id, departure_terminal_id
+                arrival_commodity, departure_commodity, max_scu, max_investment, max_outdated_days,
+                min_trade_profit, departure_system_id, departure_planet_id, departure_terminal_id
             )
             if trade_route:
                 trade_routes.append(trade_route)
@@ -462,8 +539,8 @@ class TradeRouteTab(QWidget):
         return trade_routes
 
     async def calculate_trade_route_details(
-        self, arrival_commodity, departure_commodity, max_scu, max_investment, departure_system_id,
-        departure_planet_id, departure_terminal_id
+        self, arrival_commodity, departure_commodity, max_scu, max_investment, max_outdated_days,
+        min_trade_profit, departure_system_id, departure_planet_id, departure_terminal_id
     ):
         await self.ensure_initialized()
         buy_price = departure_commodity.get("price_buy", 0)
@@ -483,9 +560,16 @@ class TradeRouteTab(QWidget):
         max_buyable_scu = min(max_scu, available_scu, int(max_investment // buy_price), demand_scu)
         if max_buyable_scu <= 0:
             return None
+        buy_update = departure_commodity["date_modified"]
+        sell_update = arrival_commodity["date_modified"]
+        sell_update_days = days_difference_from_now(sell_update)
+        if (sell_update_days > max_outdated_days):
+            return None
         investment = buy_price * max_buyable_scu
         unit_margin = (sell_price - buy_price)
         total_margin = unit_margin * max_buyable_scu
+        if (total_margin <= 0) or (total_margin < min_trade_profit):
+            return None
         profit_margin = unit_margin / buy_price
         arrival_terminal = await self.api.fetch_data("/terminals", params={'id': arrival_commodity.get("id_terminal")})
         arrival_terminal_mcs = arrival_terminal.get("data")[0].get("mcs")
@@ -501,8 +585,11 @@ class TradeRouteTab(QWidget):
              if planet["id"] == arrival_commodity.get("id_planet")),
             "Unknown Planet"
         ) + " / " + arrival_commodity.get("terminal_name")
-        departure_modified = departure_commodity["date_modified"]
-        arrival_modified = arrival_commodity["date_modified"]
+        distance = await self.api.fetch_distance(departure_commodity["id_terminal"],
+                                                 arrival_commodity["id_terminal"],
+                                                 departure_commodity["id_commodity"])
+        total_margin_by_distance = total_margin / distance
+        unit_margin_by_distance = unit_margin / distance
         return {
             "destination": destination,
             "commodity": departure_commodity.get("commodity_name"),
@@ -534,8 +621,11 @@ class TradeRouteTab(QWidget):
             "max_buyable_scu": max_buyable_scu,
             "buy_latest_update": str(departure_commodity["date_modified"]),
             "sell_latest_update": str(departure_commodity["date_modified"]),
-            "oldest_update": str(departure_modified) if departure_modified < arrival_modified else str(arrival_modified),
-            "latest_update": str(departure_modified) if departure_modified > arrival_modified else str(arrival_modified)
+            "oldest_update": str(buy_update) if buy_update < sell_update else str(sell_update),
+            "latest_update": str(buy_update) if buy_update > sell_update else str(sell_update),
+            "distance": distance,
+            "total_margin_by_distance": str(total_margin_by_distance),
+            "unit_margin_by_distance": str(unit_margin_by_distance)
         }
 
     async def update_trade_route_table(self, trade_routes, columns, quick=True):

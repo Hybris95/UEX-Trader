@@ -170,3 +170,17 @@ class API:
         """Performs a trade operation (buy/sell)."""
         # TODO - Check if data is formed properly considering user_trades_add endpoint
         return await self.post_data("/user_trades_add/", data)
+
+    async def fetch_distance(self, id_terminal_origin, id_terminal_destination, id_commodity):
+        params = {
+            'id_terminal_origin': id_terminal_origin,
+            'id_terminal_destination': id_terminal_destination,
+            'id_commodity': id_commodity
+        }
+        routes = await self.fetch_data("/commodities_routes", params=params)
+        for route in routes.get("data", []):
+            if route.get("distance", 1) is None:
+                return 1
+            else:
+                return route["distance"]
+        return 1
