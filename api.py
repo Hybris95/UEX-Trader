@@ -127,8 +127,10 @@ class API:
         commodities = await self.fetch_data("/commodities_prices", params=params)
         return commodities.get("data", [])
 
-    async def fetch_planets(self, system_id, planet_id=None):
-        params = {'id_star_system': system_id}
+    async def fetch_planets(self, system_id=None, planet_id=None):
+        params = {}
+        if system_id:
+            params = {'id_star_system': system_id}
         planets = await self.fetch_data("/planets", params=params)
         return [planet for planet in planets.get("data", [])
                 if planet.get("is_available") == 1 and (not planet_id or planet.get("id") == planet_id)]
@@ -150,10 +152,11 @@ class API:
                 if system.get("is_available") == 1]
 
     async def fetch_system(self, system_id):
-        params = {'id_star_system': system_id}
+        params = {}
         systems = await self.fetch_data("/star_systems", params=params)
         return [system for system in systems.get("data", [])
-                if system.get("is_available") == 1]
+                if system.get("is_available") == 1
+                and system.get("id") == system_id]
 
     async def fetch_routes(self, id_planet_origin, id_planet_destination):
         params = {'id_planet_origin': id_planet_origin}
