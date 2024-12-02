@@ -66,3 +66,15 @@ async def default_test_get_window_size(config_manager):
 async def test_get_window_size(config_manager):
     config_manager.set_window_size(1024, 768)
     assert config_manager.get_window_size() == (1024, 768)
+
+
+@pytest.mark.asyncio
+async def default_test_get_language(config_manager):
+    assert config_manager.get_lang() == "en"
+
+
+@pytest.mark.asyncio
+async def test_get_language(config_manager):
+    config_manager.set_lang("fr")
+    assert config_manager.get_lang() == "fr"
+    config_manager.set_lang("en")
