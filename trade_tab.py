@@ -136,11 +136,14 @@ class TradeTab(QWidget):
     async def load_systems(self):
         try:
             await self.ensure_initialized()
+            self.system_combo.clear()
             systems = await self.api.fetch_data("/star_systems")
             for system in systems.get("data", []):
                 if system.get("is_available") == 1:
+                    self.system_combo.blockSignals(True)
                     self.system_combo.addItem(system["name"], system["id"])
                     if system.get("is_default") == 1:
+                        self.system_combo.blockSignals(False)
                         self.system_combo.setCurrentIndex(self.system_combo.count() - 1)
             logging.info("Systems loaded successfully.")
         except Exception as e:
@@ -150,6 +153,8 @@ class TradeTab(QWidget):
                                  self.translation_manager.get_translation("error_failed_to_load_systems",
                                                                           self.config_manager.get_lang())
                                  + ": " + str(e))
+        finally:
+            self.system_combo.blockSignals(False)
 
     async def update_planets(self):
         await self.ensure_initialized()
@@ -161,6 +166,8 @@ class TradeTab(QWidget):
             planets = await self.api.fetch_data("/planets", params={'id_star_system': system_id})
             for planet in planets.get("data", []):
                 self.planet_combo.addItem(planet["name"], planet["id"])
+            self.planet_combo.addItem(self.translation_manager.get_translation("unknown_planet",
+                                                                               self.config_manager.get_lang()), 0)
             logging.info(f"Planets loaded successfully for star_system ID : {system_id}")
         except Exception as e:
             logging.error(f"Failed to load planets: {e}")
@@ -176,15 +183,21 @@ class TradeTab(QWidget):
         self.terminal_filter_input.clear()
         self.terminals = []
         planet_id = self.planet_combo.currentData()
-        if not planet_id:
-            return []
+        system_id = self.system_combo.currentData()
         try:
-            terminals = await self.api.fetch_data("/terminals", params={'id_planet': planet_id})
-            self.terminals = [terminal for terminal in terminals.get("data", [])
-                              if terminal.get("type") == "commodity" and terminal.get("is_available") == 1]
-            self.filter_terminals()
-            logging.info(f"Terminals loaded successfully for planet ID : {planet_id}")
-            return self.terminals
+            terminals = []
+            if not planet_id:
+                if system_id:
+                    terminals = await self.api.fetch_data("/terminals", params={'id_star_system': system_id})
+                    self.terminals = [terminal for terminal in terminals.get("data", [])
+                                    if terminal.get("type") == "commodity" and terminal.get("is_available") == 1
+                                    and terminal.get("id_planet") == 0]
+                    logging.info(f"Terminals loaded successfully for system ID (Unknown planet): {system_id}")
+            else:
+                terminals = await self.api.fetch_data("/terminals", params={'id_planet': planet_id})
+                self.terminals = [terminal for terminal in terminals.get("data", [])
+                                if terminal.get("type") == "commodity" and terminal.get("is_available") == 1]
+                logging.info(f"Terminals loaded successfully for planet ID : {planet_id}")
         except Exception as e:
             logging.error(f"Failed to load terminals: {e}")
             QMessageBox.critical(self, self.translation_manager.get_translation("error_error",
@@ -192,7 +205,9 @@ class TradeTab(QWidget):
                                  self.translation_manager.get_translation("error_failed_to_load_terminals",
                                                                           self.config_manager.get_lang())
                                  + ": " + str(e))
-            return []
+        finally:
+            self.filter_terminals()
+            return self.terminals
 
     def filter_terminals(self, terminal_id=None):
         filter_text = self.terminal_filter_input.text().lower()

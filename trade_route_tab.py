@@ -305,11 +305,14 @@ class TradeRouteTab(QWidget):
     async def load_systems(self):
         try:
             await self.ensure_initialized()
+            self.departure_system_combo.clear()
             systems = await self.api.fetch_data("/star_systems")
             for system in systems.get("data", []):
                 if system.get("is_available") == 1:
+                    self.departure_system_combo.blockSignals(True)
                     self.departure_system_combo.addItem(system["name"], system["id"])
                     if system.get("is_default") == 1:
+                        self.departure_system_combo.blockSignals(False)
                         self.departure_system_combo.setCurrentIndex(self.departure_system_combo.count() - 1)
             logging.info("Systems loaded successfully.")
         except Exception as e:
@@ -319,6 +322,8 @@ class TradeRouteTab(QWidget):
                                  self.translation_manager.get_translation("error_failed_to_load_systems",
                                                                           self.config_manager.get_lang())
                                  + f": {e}")
+        finally:
+            self.departure_system_combo.blockSignals(False)
 
     async def update_planets(self):
         await self.ensure_initialized()
@@ -333,7 +338,9 @@ class TradeRouteTab(QWidget):
             planets = await self.api.fetch_data("/planets", params={'id_star_system': system_id})
             for planet in planets.get("data", []):
                 self.departure_planet_combo.addItem(planet["name"], planet["id"])
-            logging.info("Planets loaded successfully.")
+            self.departure_planet_combo.addItem(self.translation_manager.get_translation("unknown_planet",
+                                                                                         self.config_manager.get_lang()), 0)
+            logging.info(f"Planets loaded successfully for star_system ID : {system_id}")
         except Exception as e:
             logging.error(f"Failed to load planets: {e}")
             QMessageBox.critical(self, self.translation_manager.get_translation("error_error",
@@ -348,14 +355,21 @@ class TradeRouteTab(QWidget):
         self.terminal_filter_input.clear()  # Ensure the filter input is cleared when updating terminals
         self.terminals = []
         planet_id = self.departure_planet_combo.currentData()
-        if not planet_id:
-            return
+        system_id = self.departure_system_combo.currentData()
         try:
-            terminals = await self.api.fetch_data("/terminals", params={'id_planet': planet_id})
-            self.terminals = [terminal for terminal in terminals.get("data", [])
-                              if terminal.get("type") == "commodity" and terminal.get("is_available") == 1]
-            self.filter_terminals()
-            logging.info("Terminals loaded successfully.")
+            terminals = []
+            if not planet_id:
+                if system_id:
+                    terminals = await self.api.fetch_data("/terminals", params={'id_star_system': system_id})
+                    self.terminals = [terminal for terminal in terminals.get("data", [])
+                                    if terminal.get("type") == "commodity" and terminal.get("is_available") == 1
+                                    and terminal.get("id_planet") == 0]
+                    logging.info(f"Terminals loaded successfully for system ID (Unknown planet): {system_id}")
+            else:
+                terminals = await self.api.fetch_data("/terminals", params={'id_planet': planet_id})
+                self.terminals = [terminal for terminal in terminals.get("data", [])
+                                if terminal.get("type") == "commodity" and terminal.get("is_available") == 1]
+                logging.info(f"Terminals loaded successfully for planet ID : {planet_id}")
         except Exception as e:
             logging.error(f"Failed to load terminals: {e}")
             QMessageBox.critical(self, self.translation_manager.get_translation("error_error",
@@ -363,6 +377,9 @@ class TradeRouteTab(QWidget):
                                  self.translation_manager.get_translation("error_failed_to_load_terminals",
                                                                           self.config_manager.get_lang())
                                  + f": {e}")
+        finally:
+            self.filter_terminals()
+            return self.terminals
 
     async def update_page_items(self):
         await self.ensure_initialized()
@@ -414,7 +431,7 @@ class TradeRouteTab(QWidget):
              departure_planet_id,
              departure_terminal_id
              ) = self.validate_inputs()
-            if not all([departure_system_id, departure_planet_id, departure_terminal_id]):
+            if not all([departure_system_id, departure_terminal_id]):
                 QMessageBox.warning(self, self.translation_manager.get_translation("error_input_error",
                                                                                    self.config_manager.get_lang()),
                                     self.translation_manager.get_translation("error_input_select_dpt",
