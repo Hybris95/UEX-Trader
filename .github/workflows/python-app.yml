@@ -25,14 +25,14 @@ jobs:
       uses: actions/setup-python@v5.3.0
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Cache venv
-      uses: actions/cache@v4.1.2
-      id: cache-venv
+    - name: Restore cached venv
+      uses: actions/cache/restore@v4.1.2
+      id: restore-venv
       with:
         path: .venv
         key: ${{ runner.os }}-venv-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
     - name: Create and activate venv
-      if: steps.cache-venv.outputs.cache-hit != 'true'
+      if: steps.restore-venv.outputs.cache-hit != 'true'
       run: |
         python -m venv .venv
         ${{ runner.os == 'Linux' && 'source .venv/bin/activate' || '.\.venv\Scripts\activate' }}
@@ -41,12 +41,13 @@ jobs:
     - name: List venv contents
       run: |
         ls -R ${{ github.workspace }}/.venv/
-    - name: Export venv
-      uses: actions/upload-artifact@v4.4.3
+    - name: Save cached venv
+      if: steps.restore-venv.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4.1.2
+      id: save-venv
       with:
-        name: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
-        path: ${{ github.workspace }}/.venv/**
-
+        path: .venv
+        key: ${{ runner.os }}-venv-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
   test:
     needs: setup
     strategy:
@@ -62,17 +63,25 @@ jobs:
       uses: actions/setup-python@v5.3.0
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Download venv
-      uses: actions/download-artifact@v4
+    - name: Load Cache venv
+      uses: actions/cache/restore@v4.1.2
+      id: cache-venv
       with:
-        name: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
         path: .venv
-    - name: Activate venv
+        key: ${{ runner.os }}-venv-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
+    - name: Check cache and fail if not loaded
+      if: steps.cache-venv.outputs.cache-hit != 'true'
       run: |
-        ${{ matrix.os == 'ubuntu-latest' && 'source .venv/bin/activate' || '.\.venv\Scripts\activate' }}
+        echo "Cache was not loaded successfully"
+        exit 1
+    - name: Activate venv
+      if: steps.cache-venv.outputs.cache-hit == 'true'
+      run: |
+        ${{ runner.os == 'Linux' && 'source .venv/bin/activate' || '.\.venv\Scripts\activate' }}
         pip --version
         pip list
     - name: Lint with flake8
+      if: steps.cache-venv.outputs.cache-hit == 'true'
       run: |
         # stop the build if there are Python syntax errors or undefined names
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=.venv,build,dist
@@ -80,9 +89,11 @@ jobs:
         flake8 . --count --max-complexity=10 --max-line-length=127 --statistics --exclude=.venv,build,dist
     - uses: tlambert03/setup-qt-libs@v1
     - name: build "display"
+      if: steps.cache-venv.outputs.cache-hit == 'true'
       run: |
         /sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_99.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :99 -screen 0 1920x1200x24 -ac +extension GLX
     - name: Test with pytest (isolated) & xvfb
+      if: steps.cache-venv.outputs.cache-hit == 'true'
       run: |
         pytest --disable-warnings -v
         EXIT_CODE=$?
@@ -107,18 +118,23 @@ jobs:
       uses: actions/setup-python@v5.3.0
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Download venv
-      uses: actions/download-artifact@v4
+    - name: Load Cache venv
+      uses: actions/cache/restore@v4.1.2
+      id: cache-venv
       with:
-        name: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
         path: .venv
+        key: ${{ runner.os }}-venv-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
+    - name: Check cache and fail if not loaded
+      if: steps.cache-venv.outputs.cache-hit != 'true'
+      run: |
+        echo "Cache was not loaded successfully"
+        exit 1
     - name: Activate venv
+      if: steps.cache-venv.outputs.cache-hit == 'true'
       run: |
-        ${{ matrix.os == 'ubuntu-latest' && 'source .venv/bin/activate' || '.\.venv\Scripts\activate' }}
-    - name: Install Requirements from Cache
-      run: |
-        pip install -r requirements.txt
+        ${{ runner.os == 'Linux' && 'source .venv/bin/activate' || '.\.venv\Scripts\activate' }}
     - name: PyInstaller Action
+      if: steps.cache-venv.outputs.cache-hit == 'true'
       uses: Martin005/pyinstaller-action@v1.2.0
       with:
         python_ver: ${{ matrix.python-version }}
