@@ -424,7 +424,6 @@ class BestTradeRouteTab(QWidget):
         try:
             max_scu, max_investment, max_outdated_in_days, min_trade_profit = self.get_input_values()
             departure_system_id, departure_planet_id, destination_system_id, destination_planet_id = self.get_selected_ids()
-            # TODO - Take in account when departure_planet_id == 0 or destination_planet_id == 0 (unknown planet)
 
             if not departure_system_id:
                 QMessageBox.warning(self, self.translation_manager.get_translation("error_input_error",
@@ -434,8 +433,11 @@ class BestTradeRouteTab(QWidget):
                 return
 
             departure_planets = []
-            if not departure_planet_id:
+            if departure_planet_id == "all_planets":
                 departure_planets = await self.api.fetch_planets(departure_system_id)
+            elif not departure_planet_id:
+                departure_planets = await self.api.fetch_planets(departure_system_id)
+                # TODO - Take in account when departure_planet_id == 0 (unknown planet) - Filter out by planet_id == 0
             else:
                 departure_planets = await self.api.fetch_planets(departure_system_id, departure_planet_id)
             self.logger.log(logging.INFO, f"{len(departure_planets)} departure planets found")
@@ -456,8 +458,11 @@ class BestTradeRouteTab(QWidget):
             self.progress_bar.setMaximum(universe)
             actionProgress = 0
             for destination_system in destination_systems:
-                if not destination_planet_id:
+                if destination_planet_id == "all_planets":
                     destination_planets.extend(await self.api.fetch_planets(destination_system["id"]))
+                elif not destination_planet_id:
+                    destination_planets.extend(await self.api.fetch_planets(destination_system["id"]))
+                    # TODO - Take in account when destination_planet_id == 0 (unknown planet) - Filter out by planet_id == 0
                 else:
                     destination_planets.extend(await self.api.fetch_planets(destination_system["id"], destination_planet_id))
                 actionProgress += 1
@@ -518,7 +523,6 @@ class BestTradeRouteTab(QWidget):
             # [Recover entry parameters]
             max_scu, max_investment, max_outdated_in_days, min_trade_profit = self.get_input_values()
             departure_system_id, departure_planet_id, destination_system_id, destination_planet_id = self.get_selected_ids()
-            # TODO - Take in account when departure_planet_id == 0 or destination_planet_id == 0 (unknown planet)
             ignore_stocks = self.ignore_stocks_checkbox.isChecked()
             ignore_demand = self.ignore_demand_checkbox.isChecked()
             filter_public_hangars = self.filter_public_hangars_checkbox.isChecked()
@@ -533,9 +537,13 @@ class BestTradeRouteTab(QWidget):
 
             # [Recover departure/destination planets]
             departure_planets = []
-            if not departure_planet_id:
+            if departure_planet_id == "all_planets":
                 departure_planets = await self.api.fetch_planets(departure_system_id)
                 self.logger.log(logging.INFO, f"{len(departure_planets)} Departure Planets found.")
+            elif not departure_planet_id:
+                departure_planets = await self.api.fetch_planets(departure_system_id)
+                self.logger.log(logging.INFO, f"{len(departure_planets)} Departure Planets found.")
+                # TODO - Take in account when departure_planet_id == 0 (unknown planet) - Filter out by planet_id == 0
             else:
                 departure_planets = await self.api.fetch_planets(departure_system_id, departure_planet_id)
             currentProgress += 1
@@ -554,8 +562,15 @@ class BestTradeRouteTab(QWidget):
             universe = len(destination_systems)
             self.progress_bar.setMaximum(universe)
             actionProgress = 0
-            if not destination_planet_id:
+            if destination_planet_id == "all_planets":
                 for destination_system in destination_systems:
+                    destination_planets.extend(await self.api.fetch_planets(destination_system["id"]))
+                    actionProgress += 1
+                    self.progress_bar.setValue(actionProgress)
+                self.logger.log(logging.INFO, f"{len(destination_planets)} Destination Planets found.")
+            elif not destination_planet_id:
+                for destination_system in destination_systems:
+                    # TODO - Take in account when destination_planet_id == 0 (unknown planet) - Filter out by planet_id == 0
                     destination_planets.extend(await self.api.fetch_planets(destination_system["id"]))
                     actionProgress += 1
                     self.progress_bar.setValue(actionProgress)
@@ -618,14 +633,10 @@ class BestTradeRouteTab(QWidget):
     def get_selected_ids(self):
         departure_system_id = self.departure_system_combo.currentData()
         departure_planet_id = self.departure_planet_combo.currentData()
-        if self.departure_planet_combo.currentData() == "all_planets":
-            departure_planet_id = None
         destination_system_id = self.destination_system_combo.currentData()
         if self.destination_system_combo.currentData() == "all_systems":
             destination_system_id = None
         destination_planet_id = self.destination_planet_combo.currentData()
-        if self.destination_planet_combo.currentData() == "all_planets":
-            destination_planet_id = None
         return departure_system_id, departure_planet_id, destination_system_id, destination_planet_id
 
     async def calculate_trade_routes_users(self,
