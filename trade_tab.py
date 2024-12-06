@@ -190,13 +190,13 @@ class TradeTab(QWidget):
                 if system_id:
                     terminals = await self.api.fetch_data("/terminals", params={'id_star_system': system_id})
                     self.terminals = [terminal for terminal in terminals.get("data", [])
-                                    if terminal.get("type") == "commodity" and terminal.get("is_available") == 1
-                                    and terminal.get("id_planet") == 0]
+                                      if terminal.get("type") == "commodity" and terminal.get("is_available") == 1
+                                      and terminal.get("id_planet") == 0]
                     logging.info(f"Terminals loaded successfully for system ID (Unknown planet): {system_id}")
             else:
                 terminals = await self.api.fetch_data("/terminals", params={'id_planet': planet_id})
                 self.terminals = [terminal for terminal in terminals.get("data", [])
-                                if terminal.get("type") == "commodity" and terminal.get("is_available") == 1]
+                                  if terminal.get("type") == "commodity" and terminal.get("is_available") == 1]
                 logging.info(f"Terminals loaded successfully for planet ID : {planet_id}")
         except Exception as e:
             logging.error(f"Failed to load terminals: {e}")
