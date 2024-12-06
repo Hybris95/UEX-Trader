@@ -35,14 +35,17 @@ jobs:
       if: steps.cache-venv.outputs.cache-hit != 'true'
       run: |
         python -m venv .venv
-        ${{ matrix.os == 'ubuntu-latest' && 'source .venv/bin/activate' || '.\.venv\Scripts\activate' }}
+        ${{ runner.os == 'Linux' && 'source .venv/bin/activate' || '.\.venv\Scripts\activate' }}
         python -m pip install --upgrade pip
         pip install --prefer-binary -r requirements.txt
+    - name: List venv contents
+      run: |
+        ls -R ${{ github.workspace }}/.venv/
     - name: Export venv
       uses: actions/upload-artifact@v4.4.3
       with:
-        name: venv-${{ runner.os }}-${{ matrix.python-version }}
-        path: .venv
+        name: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
+        path: ${{ github.workspace }}/.venv/**
 
   test:
     needs: setup
@@ -62,7 +65,7 @@ jobs:
     - name: Download venv
       uses: actions/download-artifact@v4
       with:
-        name: venv-${{ runner.os }}-${{ matrix.python-version }}
+        name: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
         path: .venv
     - name: Activate venv
       run: |
@@ -107,7 +110,7 @@ jobs:
     - name: Download venv
       uses: actions/download-artifact@v4
       with:
-        name: venv-${{ runner.os }}-${{ matrix.python-version }}
+        name: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
         path: .venv
     - name: Activate venv
       run: |
