@@ -84,9 +84,9 @@ jobs:
       if: steps.cache-venv.outputs.cache-hit == 'true'
       run: |
         # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=.venv,build,dist
+        python -m flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=.venv,build,dist
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --max-complexity=10 --max-line-length=127 --statistics --exclude=.venv,build,dist
+        python -m flake8 . --count --max-complexity=10 --max-line-length=127 --statistics --exclude=.venv,build,dist
     - uses: tlambert03/setup-qt-libs@v1
     - name: build "display"
       if: steps.cache-venv.outputs.cache-hit == 'true'
@@ -95,7 +95,7 @@ jobs:
     - name: Test with pytest (isolated) & xvfb
       if: steps.cache-venv.outputs.cache-hit == 'true'
       run: |
-        pytest --disable-warnings -v
+        python -m pytest --disable-warnings -v
         EXIT_CODE=$?
         if [ $EXIT_CODE -eq 139 ] ; then
           echo "Segmentation fault occured. Exit with code 0."
