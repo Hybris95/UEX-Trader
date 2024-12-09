@@ -288,7 +288,7 @@ class TradeRouteTab(QWidget):
             await translate("trade_columns_departure_scu_available"),
             await translate("trade_columns_arrival_demand_scu"),
             await translate("trade_columns_profit_margin"),
-            await translate("trade_columns_arrival_terminal_mcs"),
+            #await translate("trade_columns_arrival_terminal_mcs"),
             await translate("trade_columns_actions")
         ]
         self.trade_route_table.setColumnCount(len(self.columns))
@@ -478,7 +478,7 @@ class TradeRouteTab(QWidget):
             return None
         profit_margin = unit_margin / buy_price
         arrival_terminal = await self.api.fetch_data("/terminals", params={'id': arrival_commodity.get("id_terminal")})
-        arrival_terminal_mcs = arrival_terminal.get("data")[0].get("mcs")
+        arrival_terminal_mcs = arrival_terminal[0].get("mcs")
         arrival_id_star_system = arrival_commodity.get("id_star_system")
         destination = next(
             (system["name"] for system in (await self.api.fetch_data("/star_systems")).get("data", [])
