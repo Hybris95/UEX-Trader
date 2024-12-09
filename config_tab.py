@@ -12,6 +12,7 @@ from PyQt5.QtCore import Qt
 from config_manager import ConfigManager
 from translation_manager import TranslationManager
 import asyncio
+from tools import translate
 
 
 class ConfigTab(QWidget):
@@ -57,16 +58,12 @@ class ConfigTab(QWidget):
 
         # API KEY
         self.api_key_vboxlayout = QVBoxLayout()
-        self.api_key_label = QLabel(self.translation_manager.get_translation("config_uexcorp_apikey",
-                                                                             self.config_manager.get_lang())+":")
+        self.api_key_label = QLabel(await translate("config_uexcorp_apikey") + ":")
         self.api_key_link = QLabel()
         self.api_key_link.setOpenExternalLinks(True)
         self.api_key_link.setTextFormat(Qt.TextFormat.RichText)
         self.api_key_link.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
-        self.api_key_link.setText('<a href="https://uexcorp.space/api/apps">'
-                                  + self.translation_manager.get_translation("api_key_explain",
-                                                                             self.config_manager.get_lang())
-                                  + '</a>')
+        self.api_key_link.setText('<a href="https://uexcorp.space/api/apps">' + await translate("api_key_explain") + '</a>')
         self.api_key_input = QLineEdit(self.config_manager.get_api_key())
         self.api_key_input.setEchoMode(QLineEdit.Password)
         self.api_key_input.editingFinished.connect(self.update_api_key)
@@ -81,16 +78,13 @@ class ConfigTab(QWidget):
 
         # SECRET KEY
         self.secret_key_vboxlayout = QVBoxLayout()
-        self.secret_key_label = QLabel(self.translation_manager.get_translation("config_uexcorp_secretkey",
-                                                                                self.config_manager.get_lang())+":")
+        self.secret_key_label = QLabel(await translate("config_uexcorp_secretkey") + ":")
         self.secret_key_link = QLabel()
         self.secret_key_link.setOpenExternalLinks(True)
         self.secret_key_link.setTextFormat(Qt.TextFormat.RichText)
         self.secret_key_link.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         self.secret_key_link.setText('<a href="https://uexcorp.space/account">'
-                                     + self.translation_manager.get_translation("access_key_explain",
-                                                                                self.config_manager.get_lang())
-                                     + '</a>')
+                                     + await translate("access_key_explain") + '</a>')
         self.secret_key_input = QLineEdit(self.config_manager.get_secret_key())
         self.secret_key_input.setEchoMode(QLineEdit.Password)
         self.secret_key_input.editingFinished.connect(self.update_secret_key)
@@ -103,29 +97,23 @@ class ConfigTab(QWidget):
         self.secret_key_vboxlayout.addWidget(self.secret_key_input)
         self.secret_key_vboxlayout.addWidget(self.show_secret_key_button)
 
-        self.is_production_checkbox = QCheckBox(self.translation_manager.get_translation("config_isproduction",
-                                                                                         self.config_manager.get_lang()))
+        self.is_production_checkbox = QCheckBox(await translate("config_isproduction"))
         self.is_production_checkbox.setChecked(self.config_manager.get_is_production())
         self.is_production_checkbox.stateChanged.connect(self.update_is_production)
 
-        self.debug_checkbox = QCheckBox(self.translation_manager.get_translation("config_debugmode",
-                                                                                 self.config_manager.get_lang()))
+        self.debug_checkbox = QCheckBox(await translate("config_debugmode"))
         self.debug_checkbox.setChecked(self.config_manager.get_debug())
         self.debug_checkbox.stateChanged.connect(self.update_debug_mode)
 
-        self.appearance_label = QLabel(self.translation_manager.get_translation("config_appearancemode",
-                                                                                self.config_manager.get_lang())+":")
+        self.appearance_label = QLabel(await translate("config_appearancemode") + ":")
         self.appearance_input = QComboBox()
-        self.appearance_input.addItem(self.translation_manager.get_translation("appearance_dark",
-                                                                               self.config_manager.get_lang()), "Dark")
-        self.appearance_input.addItem(self.translation_manager.get_translation("appearance_light",
-                                                                               self.config_manager.get_lang()), "Light")
+        self.appearance_input.addItem(await translate("appearance_dark"), "Dark")
+        self.appearance_input.addItem(await translate("appearance_light"), "Light")
         self.appearance_input.setCurrentIndex(self.appearance_input.findData(self.config_manager.get_appearance_mode()))
         self.appearance_input.currentIndexChanged.connect(self.update_appearance_mode)
         self.update_appearance_mode()
 
-        self.language_label = QLabel(self.translation_manager.get_translation("config_language",
-                                                                              self.config_manager.get_lang())+":")
+        self.language_label = QLabel(await translate("config_language") + ":")
         self.language_input = QComboBox()
         langs = self.translation_manager.get_available_lang()
         for lang in langs:
@@ -164,7 +152,7 @@ class ConfigTab(QWidget):
     def update_lang(self):
         new_lang = self.language_input.currentData()
         self.config_manager.set_lang(new_lang)
-        asyncio.ensure_future(self.main_widget.initUI(new_lang))
+        asyncio.ensure_future(self.main_widget.initUI())
 
     def update_is_production(self):
         self.config_manager.set_is_production(self.is_production_checkbox.isChecked())
