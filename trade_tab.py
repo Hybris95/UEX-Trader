@@ -99,13 +99,13 @@ class TradeTab(QWidget):
         main_layout.addWidget(commodity_sell_label)
         main_layout.addWidget(self.commodity_sell_list)
 
-        amount_label = QLabel(self.translation_manager.get_translation("amount",
-                                                                       self.config_manager.get_lang())
-                              + " (" + self.translation_manager.get_translation("scu",
-                                                                                self.config_manager.get_lang()) + "):")
-        self.amount_input = QLineEdit()
-        main_layout.addWidget(amount_label)
-        main_layout.addWidget(self.amount_input)
+        quantity_label = QLabel(self.translation_manager.get_translation("quantity",
+                                                                         self.config_manager.get_lang())
+                                + " (" + self.translation_manager.get_translation("scu",
+                                                                                  self.config_manager.get_lang()) + "):")
+        self.quantity_input = QLineEdit()
+        main_layout.addWidget(quantity_label)
+        main_layout.addWidget(self.quantity_input)
 
         buy_price_label = QLabel(self.translation_manager.get_translation("trade_columns_buy_price",
                                                                           self.config_manager.get_lang())+":")
@@ -296,20 +296,20 @@ class TradeTab(QWidget):
             planet_id = self.planet_combo.currentData()
             terminal_id = self.terminal_combo.currentData()
             id_commodity = selected_item.data(Qt.UserRole)
-            amount = self.amount_input.text()
+            quantity = self.quantity_input.text()
             price = price_input.text()
 
             logger.debug(f"Attempting trade - Operation: {operation}, Terminal ID: {terminal_id}, "
-                         f"Commodity ID: {id_commodity}, Amount: {amount}, Price: {price}")
+                         f"Commodity ID: {id_commodity}, Quantity: {quantity}, Price: {price}")
 
-            await self.validate_trade_inputs(terminal_id, id_commodity, amount, price)
+            await self.validate_trade_inputs(terminal_id, id_commodity, quantity, price)
             await self.validate_terminal_and_commodity(planet_id, terminal_id, id_commodity)
 
             data = {
                 "id_terminal": terminal_id,
                 "id_commodity": id_commodity,
                 "operation": operation,
-                "scu": int(amount),
+                "scu": int(quantity),
                 "price": float(price),
             }
 
@@ -340,17 +340,23 @@ class TradeTab(QWidget):
                                                                           self.config_manager.get_lang())
                                  + ": " + str(e))
 
-    async def validate_trade_inputs(self, terminal_id, id_commodity, amount, price):
+    async def validate_trade_inputs(self, terminal_id, id_commodity, quantity, price):
         await self.ensure_initialized()
-        if not all([terminal_id, id_commodity, amount, price]):
+        if not all([terminal_id, id_commodity, quantity, price]):
             raise ValueError(self.translation_manager.get_translation("error_input_fill_all_fields",
                                                                       self.config_manager.get_lang()))
-        if not re.match(r'^\d+$', amount):
-            raise ValueError(self.translation_manager.get_translation("error_input_invalid_amount",
-                                                                      self.config_manager.get_lang()))
+        if not re.match(r'^\d+$', quantity):
+            raise ValueError(self.translation_manager.get_translation("quantity",
+                                                                      self.config_manager.get_lang())
+                             + " "
+                             + self.translation_manager.get_translation("error_input_invalid_integer",
+                                                                        self.config_manager.get_lang()))
         if not re.match(r'^\d+(\.\d+)?$', price):
-            raise ValueError(self.translation_manager.get_translation("error_input_invalid_price",
-                                                                      self.config_manager.get_lang()))
+            raise ValueError(self.translation_manager.get_translation("price",
+                                                                      self.config_manager.get_lang())
+                             + " "
+                             + self.translation_manager.get_translation("error_input_invalid_number",
+                                                                        self.config_manager.get_lang()))
 
     async def validate_terminal_and_commodity(self, planet_id, terminal_id, id_commodity):
         await self.ensure_initialized()
@@ -422,8 +428,8 @@ class TradeTab(QWidget):
                 logger.info(f"Selected commodity ID: {commodity_id}")
                 break
 
-        self.amount_input.setText(str(trade_route["max_buyable_scu"]))
-        logger.info(f"Set amount to: {trade_route['max_buyable_scu']}")
+        self.quantity_input.setText(str(trade_route["max_buyable_scu"]))
+        logger.info(f"Set quantity to: {trade_route['max_buyable_scu']}")
 
         self.terminal_combo.blockSignals(False)
         self.planet_combo.blockSignals(False)

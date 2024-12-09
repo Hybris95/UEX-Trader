@@ -1,5 +1,6 @@
 import logging
 import sys
+import re
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit, QComboBox,
     QPushButton, QTableWidget, QMessageBox, QTableWidgetItem,
@@ -443,12 +444,6 @@ class BestTradeRouteTab(QWidget):
             max_scu, max_investment, max_outdated_in_days, min_trade_profit = self.get_input_values()
             departure_system_id, departure_planet_id, destination_system_id, destination_planet_id = self.get_selected_ids()
 
-            if not departure_system_id:
-                QMessageBox.warning(self, self.translation_manager.get_translation("error_input_error",
-                                                                                   self.config_manager.get_lang()),
-                                    self.translation_manager.get_translation("error_input_select_ds",
-                                                                             self.config_manager.get_lang()))
-                return
             if departure_planet_id == "unknown_planet" or destination_planet_id == "unknown_planet":
                 raise Exception("User Trades is not compatible with Unknown Planet search")
 
@@ -498,7 +493,10 @@ class BestTradeRouteTab(QWidget):
             currentProgress += 1
             self.main_progress_bar.setValue(currentProgress)
             self.logger.log(logging.INFO, "Finished calculating Best Trade Routes")
-
+        except ValueError as e:
+            self.logger.warning(f"Input Error: {e}")
+            QMessageBox.warning(self, self.translation_manager.get_translation("error_input_error",
+                                                                               self.config_manager.get_lang()), str(e))
         except Exception as e:
             self.logger.log(logging.ERROR, f"An error occurred while finding best trade routes: {e}")
             QMessageBox.critical(self, self.translation_manager.get_translation("error_error",
@@ -541,13 +539,6 @@ class BestTradeRouteTab(QWidget):
             ignore_demand = self.ignore_demand_checkbox.isChecked()
             filter_public_hangars = self.filter_public_hangars_checkbox.isChecked()
             filter_space_only = self.filter_space_only_checkbox.isChecked()
-
-            if not departure_system_id:
-                QMessageBox.warning(self, self.translation_manager.get_translation("error_input_error",
-                                                                                   self.config_manager.get_lang()),
-                                    self.translation_manager.get_translation("error_input_select_ds",
-                                                                             self.config_manager.get_lang()))
-                return
 
             # [Recover departure/destination planets]
             departure_planets = await self.get_planets_from_single_ids(departure_system_id, departure_planet_id)
@@ -616,6 +607,10 @@ class BestTradeRouteTab(QWidget):
             currentProgress += 1
             self.main_progress_bar.setValue(currentProgress)
             self.logger.log(logging.INFO, f"Finished calculating Best Trade Routes : {len(self.current_trades)} found")
+        except ValueError as e:
+            self.logger.warning(f"Input Error: {e}")
+            QMessageBox.warning(self, self.translation_manager.get_translation("error_input_error",
+                                                                               self.config_manager.get_lang()), str(e))
         except Exception as e:
             import traceback
             if self.config_manager.get_debug():
@@ -633,6 +628,29 @@ class BestTradeRouteTab(QWidget):
             self.main_progress_bar.setVisible(False)
 
     def get_input_values(self):
+        if not re.match(r'^\d+$', self.max_scu_input.text()):
+            raise ValueError(self.translation_manager.get_translation("scu",
+                                                                      self.config_manager.get_lang())
+                             + " "
+                             + self.translation_manager.get_translation("error_input_invalid_integer",
+                                                                        self.config_manager.get_lang()))
+        if not re.match(r'^\d+(\.\d+)?$', self.max_investment_input.text()):
+            raise ValueError(self.translation_manager.get_translation("max_investment",
+                                                                      self.config_manager.get_lang())
+                             + " "
+                             + self.translation_manager.get_translation("error_input_invalid_number",
+                                                                        self.config_manager.get_lang()))
+        if not re.match(r'^\d+$', self.max_outdated_input.text()):
+            raise ValueError(self.translation_manager.get_translation("days", self.config_manager.get_lang())
+                             + " "
+                             + self.translation_manager.get_translation("error_input_invalid_integer",
+                                                                        self.config_manager.get_lang()))
+        if not re.match(r'^\d+$', self.min_trade_profit_input.text()):
+            raise ValueError(self.translation_manager.get_translation("trade_columns_profit_margin",
+                                                                      self.config_manager.get_lang())
+                             + " "
+                             + self.translation_manager.get_translation("error_input_invalid_integer",
+                                                                        self.config_manager.get_lang()))
         max_scu = int(self.max_scu_input.text()) if self.max_scu_input.text() else sys.maxsize
         max_investment = float(self.max_investment_input.text()) if self.max_investment_input.text() else sys.maxsize
         max_outdated_in_days = int(self.max_outdated_input.text()) if self.max_outdated_input.text() else sys.maxsize
@@ -646,6 +664,9 @@ class BestTradeRouteTab(QWidget):
         if self.destination_system_combo.currentData() == "all_systems":
             destination_system_id = None
         destination_planet_id = self.destination_planet_combo.currentData()
+        if not departure_system_id:
+            raise ValueError(self.translation_manager.get_translation("error_input_select_ds",
+                                                                      self.config_manager.get_lang()))
         return departure_system_id, departure_planet_id, destination_system_id, destination_planet_id
 
     async def calculate_trade_routes_users(self,

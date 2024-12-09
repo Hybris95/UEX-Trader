@@ -1,5 +1,6 @@
 import logging
 import sys
+import re
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QLineEdit, QComboBox
 from PyQt5.QtWidgets import (
     QPushButton, QTableWidget,
@@ -430,13 +431,7 @@ class TradeRouteTab(QWidget):
              departure_system_id,
              departure_planet_id,
              departure_terminal_id
-             ) = self.validate_inputs()
-            if not all([departure_system_id, departure_terminal_id]):
-                QMessageBox.warning(self, self.translation_manager.get_translation("error_input_error",
-                                                                                   self.config_manager.get_lang()),
-                                    self.translation_manager.get_translation("error_input_select_dpt",
-                                                                             self.config_manager.get_lang()))
-                return
+             ) = await self.validate_inputs()
 
             self.current_trades = await self.fetch_and_process_departure_commodities(
                 departure_terminal_id,
@@ -449,6 +444,10 @@ class TradeRouteTab(QWidget):
             )
 
             await self.update_trade_route_table(self.current_trades, self.columns, quick=False)
+        except ValueError as e:
+            self.logger.warning(f"Input Error: {e}")
+            QMessageBox.warning(self, self.translation_manager.get_translation("error_input_error",
+                                                                               self.config_manager.get_lang()), str(e))
         except Exception as e:
             self.logger.log(logging.ERROR, f"An error occurred while finding trade routes: {e}")
             QMessageBox.critical(self, self.translation_manager.get_translation("error_error",
@@ -461,7 +460,31 @@ class TradeRouteTab(QWidget):
             self.progress_bar.setVisible(False)
             self.main_progress_bar.setVisible(False)
 
-    def validate_inputs(self):
+    async def validate_inputs(self):
+        await self.ensure_initialized()
+        if not re.match(r'^\d+$', self.max_scu_input.text()):
+            raise ValueError(self.translation_manager.get_translation("scu",
+                                                                      self.config_manager.get_lang())
+                             + " "
+                             + self.translation_manager.get_translation("error_input_invalid_integer",
+                                                                        self.config_manager.get_lang()))
+        if not re.match(r'^\d+(\.\d+)?$', self.max_investment_input.text()):
+            raise ValueError(self.translation_manager.get_translation("max_investment",
+                                                                      self.config_manager.get_lang())
+                             + " "
+                             + self.translation_manager.get_translation("error_input_invalid_number",
+                                                                        self.config_manager.get_lang()))
+        if not re.match(r'^\d+$', self.max_outdated_input.text()):
+            raise ValueError(self.translation_manager.get_translation("days", self.config_manager.get_lang())
+                             + " "
+                             + self.translation_manager.get_translation("error_input_invalid_integer",
+                                                                        self.config_manager.get_lang()))
+        if not re.match(r'^\d+$', self.min_trade_profit_input.text()):
+            raise ValueError(self.translation_manager.get_translation("trade_columns_profit_margin",
+                                                                      self.config_manager.get_lang())
+                             + " "
+                             + self.translation_manager.get_translation("error_input_invalid_integer",
+                                                                        self.config_manager.get_lang()))
         max_scu = int(self.max_scu_input.text()) if self.max_scu_input.text() else sys.maxsize
         max_investment = float(self.max_investment_input.text()) if self.max_investment_input.text() else sys.maxsize
         max_outdated_days = int(self.max_outdated_input.text()) if self.max_outdated_input.text() else sys.maxsize
@@ -469,6 +492,9 @@ class TradeRouteTab(QWidget):
         departure_system_id = self.departure_system_combo.currentData()
         departure_planet_id = self.departure_planet_combo.currentData()
         departure_terminal_id = self.departure_terminal_combo.currentData()
+        if not all([departure_system_id, departure_terminal_id]):
+            raise ValueError(self.translation_manager.get_translation("error_input_select_dpt",
+                                                                      self.config_manager.get_lang()))
         return (max_scu,
                 max_investment,
                 max_outdated_days,
