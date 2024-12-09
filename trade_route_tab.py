@@ -288,7 +288,7 @@ class TradeRouteTab(QWidget):
             await translate("trade_columns_departure_scu_available"),
             await translate("trade_columns_arrival_demand_scu"),
             await translate("trade_columns_profit_margin"),
-            #await translate("trade_columns_arrival_terminal_mcs"),
+            # await translate("trade_columns_arrival_terminal_mcs"),
             await translate("trade_columns_actions")
         ]
         self.trade_route_table.setColumnCount(len(self.columns))
