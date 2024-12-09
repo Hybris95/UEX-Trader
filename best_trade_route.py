@@ -62,6 +62,7 @@ class BestTradeRouteTab(QWidget):
                     await translate("trade_columns_departure_scu_available"),
                     await translate("trade_columns_arrival_demand_scu"),
                     await translate("trade_columns_profit_margin"),
+                    # await translate("trade_columns_arrival_terminal_mcs"),
                     await translate("trade_columns_actions")
                 ]
                 await self.initUI()
@@ -710,6 +711,11 @@ class BestTradeRouteTab(QWidget):
             if (total_margin <= 0) or (total_margin < min_trade_profit):
                 continue
             profit_margin = unit_margin / price_buy
+
+            arrival_terminal = await self.api.fetch_terminals(commodity_route["id_star_system_destination"],
+                                                              commodity_route["id_planet_destination"],
+                                                              commodity_route["id_terminal_destination"])
+            arrival_terminal_mcs = arrival_terminal[0].get("mcs")
             distance = await self.api.fetch_distance(commodity_route["id_terminal_origin"],
                                                      commodity_route["id_terminal_destination"],
                                                      commodity_route["id_commodity"])
@@ -729,6 +735,7 @@ class BestTradeRouteTab(QWidget):
                 "departure_scu_available": str(commodity_route.get('scu_origin', 0)) + " " + await translate("scu"),
                 "arrival_demand_scu": str(commodity_route.get('scu_destination', 0)) + " " + await translate("scu"),
                 "profit_margin": f"{round(profit_margin * 100)}%",
+                "arrival_terminal_mcs": arrival_terminal_mcs,
                 "departure_terminal_id": commodity_route["id_terminal_origin"],
                 "arrival_terminal_id": commodity_route["id_terminal_destination"],
                 "departure_system_id": commodity_route["id_star_system_origin"],
@@ -809,6 +816,11 @@ class BestTradeRouteTab(QWidget):
         total_margin_by_distance = total_margin / distance
         unit_margin_by_distance = unit_margin / distance
 
+        arrival_terminal = await self.api.fetch_terminals(sell_commodity["id_star_system"],
+                                                          sell_commodity["id_planet"],
+                                                          sell_commodity["id_terminal"])
+        arrival_terminal_mcs = arrival_terminal[0].get("mcs")
+
         route = {
             "departure": buy_commodity["terminal_name"],
             "destination": sell_commodity["terminal_name"],
@@ -822,6 +834,7 @@ class BestTradeRouteTab(QWidget):
             "departure_scu_available": str(buy_commodity.get('scu_buy', 0)) + " " + await translate("scu"),
             "arrival_demand_scu": str(scu_sell_stock - scu_sell_users) + " " + await translate("scu"),
             "profit_margin": f"{round(profit_margin * 100)} %",
+            "arrival_terminal_mcs": arrival_terminal_mcs,
             "departure_terminal_id": buy_commodity["id_terminal"],
             "arrival_terminal_id": sell_commodity.get("id_terminal"),
             "departure_system_id": buy_commodity.get("id_star_system"),
