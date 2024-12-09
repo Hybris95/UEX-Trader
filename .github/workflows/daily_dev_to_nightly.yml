@@ -2,7 +2,7 @@ name: Daily Merge Dev to Nightly
 
 on:
   schedule:
-    - cron: '0 0 * * *' # This cron expression means "every day at midnight UTC"
+    - cron: '0 9 * * *' # This cron expression means "every day at 9AM UTC"
 
 jobs:
   merge:
