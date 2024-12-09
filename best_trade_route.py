@@ -483,13 +483,13 @@ class BestTradeRouteTab(QWidget):
             self.main_progress_bar.setVisible(False)
 
     async def get_input_values(self):
-        if not re.match(r'^\d+$', self.max_scu_input.text()):
+        if not re.match(r'^\d+$', self.max_scu_input.text()) and self.max_scu_input.text() != "":
             raise ValueError(await translate("scu") + " " + await translate("error_input_invalid_integer"))
-        if not re.match(r'^\d+(\.\d+)?$', self.max_investment_input.text()):
+        if not re.match(r'^\d+(\.\d+)?$', self.max_investment_input.text()) and self.max_investment_input.text() != "":
             raise ValueError(await translate("max_investment") + " " + await translate("error_input_invalid_number"))
-        if not re.match(r'^\d+$', self.max_outdated_input.text()):
+        if not re.match(r'^\d+$', self.max_outdated_input.text()) and self.max_outdated_input.text() != "":
             raise ValueError(await translate("days") + " " + await translate("error_input_invalid_integer"))
-        if not re.match(r'^\d+$', self.min_trade_profit_input.text()):
+        if not re.match(r'^\d+$', self.min_trade_profit_input.text()) and self.min_trade_profit_input.text() != "":
             raise ValueError(await translate("trade_columns_profit_margin")
                              + " " + await translate("error_input_invalid_integer"))
         max_scu = int(self.max_scu_input.text()) if self.max_scu_input.text() else sys.maxsize
