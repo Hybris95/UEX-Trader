@@ -10,6 +10,7 @@ from config_manager import ConfigManager
 from translation_manager import TranslationManager
 from api import API
 import asyncio
+from tools import translate
 
 
 class UexcorpTrader(QWidget):
@@ -42,7 +43,7 @@ class UexcorpTrader(QWidget):
                     await self.api.initialize()
                 else:
                     self.api = API._instance
-                await self.initUI(self.config_manager.get_lang())
+                await self.initUI()
                 await self.apply_appearance_mode(self.config_manager.get_appearance_mode())
                 self._initialized.set()
 
@@ -55,8 +56,8 @@ class UexcorpTrader(QWidget):
         await self.ensure_initialized()
         return self
 
-    async def initUI(self, lang="en"):
-        self.setWindowTitle(self.translation_manager.get_translation("window_title", lang))
+    async def initUI(self):
+        self.setWindowTitle(await translate("window_title"))
         self.setWindowIcon(QIcon("resources/UEXTrader_icon_resized.png"))
 
         if hasattr(self, "tabs") and hasattr(self, "main_layout"):
@@ -70,10 +71,10 @@ class UexcorpTrader(QWidget):
         await self.tradeRouteTab.initialize()
         self.bestTradeRouteTab = BestTradeRouteTab(self)
         await self.bestTradeRouteTab.initialize()
-        self.tabs.addTab(self.configTab, self.translation_manager.get_translation("config_tab", lang))
-        self.tabs.addTab(self.tradeTab, self.translation_manager.get_translation("trade_tab", lang))
-        self.tabs.addTab(self.tradeRouteTab, self.translation_manager.get_translation("trade_route_tab", lang))
-        self.tabs.addTab(self.bestTradeRouteTab, self.translation_manager.get_translation("best_trade_route_tab", lang))
+        self.tabs.addTab(self.configTab, await translate("config_tab"))
+        self.tabs.addTab(self.tradeTab, await translate("trade_tab"))
+        self.tabs.addTab(self.tradeRouteTab, await translate("trade_route_tab"))
+        self.tabs.addTab(self.bestTradeRouteTab, await translate("best_trade_route_tab"))
 
         if not hasattr(self, "main_layout"):
             self.main_layout = QVBoxLayout()
