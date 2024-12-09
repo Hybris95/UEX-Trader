@@ -177,20 +177,17 @@ class BestTradeRouteTab(QWidget):
         self.departure_planet_combo.addItem(self.translation_manager.get_translation("all_planets",
                                                                                      self.config_manager.get_lang()),
                                             "all_planets")
-        self.departure_planet_combo.currentIndexChanged.connect(
-            lambda: asyncio.ensure_future(self.update_departure_terminals())
-        )
         layout.addWidget(QLabel(self.translation_manager.get_translation("departure_planet",
                                                                          self.config_manager.get_lang())
                                 + ":"))
         layout.addWidget(self.departure_planet_combo)
         self.destination_system_combo = QComboBox()
-        self.destination_system_combo.addItem(self.translation_manager.get_translation("all_systems",
-                                                                                       self.config_manager.get_lang()),
-                                              "all_systems")
         self.destination_system_combo.currentIndexChanged.connect(
             lambda: asyncio.ensure_future(self.update_destination_planets())
         )
+        self.destination_system_combo.addItem(self.translation_manager.get_translation("all_systems",
+                                                                                       self.config_manager.get_lang()),
+                                              "all_systems")
         layout.addWidget(QLabel(self.translation_manager.get_translation("destination_system",
                                                                          self.config_manager.get_lang())
                                 + ":"))
@@ -199,9 +196,6 @@ class BestTradeRouteTab(QWidget):
         self.destination_planet_combo.addItem(self.translation_manager.get_translation("all_planets",
                                                                                        self.config_manager.get_lang()),
                                               "all_planets")
-        self.destination_planet_combo.currentIndexChanged.connect(
-            lambda: asyncio.ensure_future(self.update_destination_terminals())
-        )
         layout.addWidget(QLabel(self.translation_manager.get_translation("destination_planet",
                                                                          self.config_manager.get_lang())
                                 + ":"))
@@ -337,9 +331,12 @@ class BestTradeRouteTab(QWidget):
             systems = await self.api.fetch_data("/star_systems")
             for system in systems.get("data", []):
                 if system.get("is_available") == 1:
+                    self.departure_system_combo.blockSignals(True)
                     self.departure_system_combo.addItem(system["name"], system["id"])
+                    self.destination_system_combo.blockSignals(True)
                     self.destination_system_combo.addItem(system["name"], system["id"])
                     if system.get("is_default") == 1:
+                        self.departure_system_combo.blockSignals(False)
                         self.departure_system_combo.setCurrentIndex(self.departure_system_combo.count() - 1)
             logging.info("Systems loaded successfully.")
         except Exception as e:
@@ -349,6 +346,9 @@ class BestTradeRouteTab(QWidget):
                                  self.translation_manager.get_translation("error_failed_to_load_systems",
                                                                           self.config_manager.get_lang())
                                  + f": {e}")
+        finally:
+            self.departure_system_combo.blockSignals(False)
+            self.destination_system_combo.blockSignals(False)
 
     async def update_departure_planets(self):
         await self.ensure_initialized()
@@ -364,34 +364,15 @@ class BestTradeRouteTab(QWidget):
             planets = await self.api.fetch_planets(system_id)
             for planet in planets:
                 self.departure_planet_combo.addItem(planet["name"], planet["id"])
-            logging.info("Departure planets loaded successfully.")
+            self.departure_planet_combo.addItem(self.translation_manager.get_translation("unknown_planet",
+                                                                                         self.config_manager.get_lang()),
+                                                "unknown_planet")
+            logging.info(f"Departure planets loaded successfully for star_system ID : {system_id}")
         except Exception as e:
             logging.error(f"Failed to load departure planets: {e}")
             QMessageBox.critical(self, self.translation_manager.get_translation("error_error",
                                                                                 self.config_manager.get_lang()),
                                  self.translation_manager.get_translation("error_failed_to_load_departure_planets",
-                                                                          self.config_manager.get_lang())
-                                 + f": {e}")
-
-    async def update_departure_terminals(self):
-        await self.ensure_initialized()
-        self.terminals = []
-        planet_id = self.departure_planet_combo.currentData()
-        if not planet_id and self.departure_planet_combo.currentData() != "all_planets":
-            return
-        try:
-            params = {'id_star_system': self.departure_system_combo.currentData()}
-            if self.departure_planet_combo.currentData() != "all_planets":
-                params['id_planet'] = planet_id
-            terminals = await self.api.fetch_data("/terminals", params=params)
-            self.terminals = [terminal for terminal in terminals.get("data", [])
-                              if terminal.get("type") == "commodity" and terminal.get("is_available") == 1]
-            logging.info("Departure terminals loaded successfully.")
-        except Exception as e:
-            logging.error(f"Failed to load departure terminals: {e}")
-            QMessageBox.critical(self, self.translation_manager.get_translation("error_error",
-                                                                                self.config_manager.get_lang()),
-                                 self.translation_manager.get_translation("error_failed_to_load_departure_terminals",
                                                                           self.config_manager.get_lang())
                                  + f": {e}")
 
@@ -412,7 +393,10 @@ class BestTradeRouteTab(QWidget):
                 planets = await self.api.fetch_planets()
             for planet in planets:
                 self.destination_planet_combo.addItem(planet["name"], planet["id"])
-            logging.info("Destination planets loaded successfully.")
+            self.destination_planet_combo.addItem(self.translation_manager.get_translation("unknown_planet",
+                                                                                           self.config_manager.get_lang()),
+                                                  "unknown_planet")
+            logging.info(f"Destination planets loaded successfully for star_system ID : {system_id}")
         except Exception as e:
             logging.error(f"Failed to load destination planets: {e}")
             QMessageBox.critical(self, self.translation_manager.get_translation("error_error",
@@ -421,33 +405,25 @@ class BestTradeRouteTab(QWidget):
                                                                           self.config_manager.get_lang())
                                  + f": {e}")
 
-    async def update_destination_terminals(self):
-        await self.ensure_initialized()
-        self.destination_terminals = []
-        planet_id = self.destination_planet_combo.currentData()
-        if not planet_id and self.destination_planet_combo.currentData() != "all_planets":
-            return
-        try:
-            params = {}
-            if self.destination_system_combo.currentData() != "all_systems":
-                params['id_star_system'] = self.destination_system_combo.currentData()
-            if self.destination_planet_combo.currentData() != "all_planets":
-                params['id_planet'] = planet_id
-            terminals = await self.api.fetch_data("/terminals", params=params)
-            self.destination_terminals = [terminal for terminal in terminals.get("data", [])
-                                          if terminal.get("type") == "commodity" and terminal.get("is_available") == 1]
-            logging.info("Destination terminals loaded successfully.")
-        except Exception as e:
-            logging.error(f"Failed to load destination terminals: {e}")
-            QMessageBox.critical(self, self.translation_manager.get_translation("error_error",
-                                                                                self.config_manager.get_lang()),
-                                 self.translation_manager.get_translation("error_failed_to_load_destination_terminals",
-                                                                          self.config_manager.get_lang())
-                                 + f": {e}")
-
     async def update_page_items(self):
         await self.ensure_initialized()
         await self.display_trade_routes(self.current_trades, self.columns, quick=False)
+
+    async def get_planets_from_systems(self, systems, planet_id, show_progress=False):
+        planets = []
+        universe = len(systems)
+        if show_progress:
+            self.progress_bar.setMaximum(universe)
+        actionProgress = 0
+        for system in systems:
+            if planet_id == "all_planets":
+                planets.extend(await self.api.fetch_planets(system["id"]))
+            elif planet_id != "unknown_planet":
+                planets.extend(await self.api.fetch_planets(system["id"], planet_id))
+            actionProgress += 1
+            if show_progress:
+                self.progress_bar.setValue(actionProgress)
+        return planets
 
     async def find_best_trade_routes_users(self):
         await self.ensure_initialized()
@@ -473,11 +449,13 @@ class BestTradeRouteTab(QWidget):
                                     self.translation_manager.get_translation("error_input_select_ds",
                                                                              self.config_manager.get_lang()))
                 return
+            if departure_planet_id == "unknown_planet" or destination_planet_id == "unknown_planet":
+                raise Exception("User Trades is not compatible with Unknown Planet search")
 
             departure_planets = []
-            if not departure_planet_id:
+            if departure_planet_id == "all_planets":
                 departure_planets = await self.api.fetch_planets(departure_system_id)
-            else:
+            elif departure_planet_id != "unknown_planet":
                 departure_planets = await self.api.fetch_planets(departure_system_id, departure_planet_id)
             self.logger.log(logging.INFO, f"{len(departure_planets)} departure planets found")
             currentProgress += 1
@@ -492,17 +470,9 @@ class BestTradeRouteTab(QWidget):
             currentProgress += 1
             self.main_progress_bar.setValue(currentProgress)
 
-            destination_planets = []
-            universe = len(destination_systems)
-            self.progress_bar.setMaximum(universe)
-            actionProgress = 0
-            for destination_system in destination_systems:
-                if not destination_planet_id:
-                    destination_planets.extend(await self.api.fetch_planets(destination_system["id"]))
-                else:
-                    destination_planets.extend(await self.api.fetch_planets(destination_system["id"], destination_planet_id))
-                actionProgress += 1
-                self.progress_bar.setValue(actionProgress)
+            destination_planets = await self.get_planets_from_systems(destination_systems,
+                                                                      destination_planet_id,
+                                                                      show_progress=True)
             self.logger.log(logging.INFO, f"{len(destination_planets)} destination planets found")
             currentProgress += 1
             self.main_progress_bar.setValue(currentProgress)
@@ -541,6 +511,14 @@ class BestTradeRouteTab(QWidget):
             self.main_progress_bar.setVisible(False)
             self.progress_bar.setVisible(False)
 
+    async def get_planets_from_single_ids(self, system_id, planet_id):
+        planets = []
+        if planet_id == "all_planets":
+            planets = await self.api.fetch_planets(system_id)
+        elif planet_id != "unknown_planet":
+            planets = await self.api.fetch_planets(system_id, planet_id)
+        return planets
+
     async def find_best_trade_routes_rework(self):
         await self.ensure_initialized()
         self.logger.log(logging.INFO, "Searching for Best Trade Routes")
@@ -572,12 +550,8 @@ class BestTradeRouteTab(QWidget):
                 return
 
             # [Recover departure/destination planets]
-            departure_planets = []
-            if not departure_planet_id:
-                departure_planets = await self.api.fetch_planets(departure_system_id)
-                self.logger.log(logging.INFO, f"{len(departure_planets)} Departure Planets found.")
-            else:
-                departure_planets = await self.api.fetch_planets(departure_system_id, departure_planet_id)
+            departure_planets = await self.get_planets_from_single_ids(departure_system_id, departure_planet_id)
+            self.logger.log(logging.INFO, f"{len(departure_planets)} Departure Planets found.")
             currentProgress += 1
             self.main_progress_bar.setValue(currentProgress)
 
@@ -591,15 +565,19 @@ class BestTradeRouteTab(QWidget):
             self.main_progress_bar.setValue(currentProgress)
 
             destination_planets = []
-            universe = len(destination_systems)
+            universe = len(destination_systems) if destination_planet_id != "unknown_planet" else 1
             self.progress_bar.setMaximum(universe)
             actionProgress = 0
-            if not destination_planet_id:
+            if destination_planet_id == "all_planets":
                 for destination_system in destination_systems:
                     destination_planets.extend(await self.api.fetch_planets(destination_system["id"]))
                     actionProgress += 1
                     self.progress_bar.setValue(actionProgress)
                 self.logger.log(logging.INFO, f"{len(destination_planets)} Destination Planets found.")
+            elif destination_planet_id == "unknown_planet":
+                actionProgress += 1
+                self.progress_bar.setValue(actionProgress)
+                self.logger.log(logging.INFO, "Unknown Destination Planets.")
             else:
                 destination_planets = await self.api.fetch_planets(destination_system_id, destination_planet_id)
                 actionProgress += 1
@@ -610,7 +588,8 @@ class BestTradeRouteTab(QWidget):
             # [Recover departure/destination terminals and commodities]
             departure_terminals = await self.get_terminals_from_planets(departure_planets,
                                                                         filter_public_hangars,
-                                                                        filter_space_only)
+                                                                        filter_space_only,
+                                                                        departure_system_id)
             self.logger.log(logging.INFO, f"{len(departure_terminals)} Departure Terminals found.")
             currentProgress += 1
             self.main_progress_bar.setValue(currentProgress)
@@ -623,7 +602,8 @@ class BestTradeRouteTab(QWidget):
             sell_commodities = await self.get_sell_commodities_from_commodities_prices(buy_commodities,
                                                                                        destination_planets,
                                                                                        filter_public_hangars,
-                                                                                       filter_space_only)
+                                                                                       filter_space_only,
+                                                                                       destination_systems)
             self.logger.log(logging.INFO, f"{len(sell_commodities)} Sell Commodities found.")
             currentProgress += 1
             self.main_progress_bar.setValue(currentProgress)
@@ -637,7 +617,11 @@ class BestTradeRouteTab(QWidget):
             self.main_progress_bar.setValue(currentProgress)
             self.logger.log(logging.INFO, f"Finished calculating Best Trade Routes : {len(self.current_trades)} found")
         except Exception as e:
-            self.logger.log(logging.ERROR, f"An error occurred while finding best trade routes: {e}")
+            import traceback
+            if self.config_manager.get_debug():
+                traceback.print_exc()
+            else:
+                self.logger.log(logging.ERROR, f"An error occurred while finding best trade routes: {e}")
             QMessageBox.critical(self, self.translation_manager.get_translation("error_error",
                                                                                 self.config_manager.get_lang()),
                                  self.translation_manager.get_translation("error_generic",
@@ -658,14 +642,10 @@ class BestTradeRouteTab(QWidget):
     def get_selected_ids(self):
         departure_system_id = self.departure_system_combo.currentData()
         departure_planet_id = self.departure_planet_combo.currentData()
-        if self.departure_planet_combo.currentData() == "all_planets":
-            departure_planet_id = None
         destination_system_id = self.destination_system_combo.currentData()
         if self.destination_system_combo.currentData() == "all_systems":
             destination_system_id = None
         destination_planet_id = self.destination_planet_combo.currentData()
-        if self.destination_planet_combo.currentData() == "all_planets":
-            destination_planet_id = None
         return departure_system_id, departure_planet_id, destination_system_id, destination_planet_id
 
     async def calculate_trade_routes_users(self,
@@ -683,25 +663,43 @@ class BestTradeRouteTab(QWidget):
         QApplication.processEvents()
         return trade_routes
 
-    async def get_terminals_from_planets(self, filtering_planets, filter_public_hangars=False, filter_space_only=False):
+    async def get_terminals_from_planets(self, filtering_planets,
+                                         filter_public_hangars=False,
+                                         filter_space_only=False,
+                                         filtering_system_id=None):
         await self.ensure_initialized()
         terminals = []
         universe = len(filtering_planets)
-        self.progress_bar.setMaximum(universe)
-        actionProgress = 0
         # Get all terminals (filter by system/planet) from /terminals
-        for planet in filtering_planets:
-            returned_terminals = await self.api.fetch_terminals(planet["id_star_system"],
-                                                                planet["id"])
+        if universe == 0 and filtering_system_id:
+            self.progress_bar.setMaximum(1)
+            actionProgress = 0
+            returned_terminals = [terminal for terminal in await self.api.fetch_terminals(filtering_system_id)
+                                  if terminal.get("id_planet") == 0]
             for terminal in returned_terminals:
                 if ((not filter_public_hangars
-                     or (terminal["city_name"]
-                         or terminal["space_station_name"]))
+                    or (terminal["city_name"]
+                        or terminal["space_station_name"]))
                     and (not filter_space_only
                          or terminal["space_station_name"])):
                     terminals.append(terminal)
             actionProgress += 1
             self.progress_bar.setValue(actionProgress)
+        else:
+            self.progress_bar.setMaximum(universe)
+            actionProgress = 0
+            for planet in filtering_planets:
+                returned_terminals = await self.api.fetch_terminals(planet["id_star_system"],
+                                                                    planet["id"])
+                for terminal in returned_terminals:
+                    if ((not filter_public_hangars
+                        or (terminal["city_name"]
+                            or terminal["space_station_name"]))
+                        and (not filter_space_only
+                             or terminal["space_station_name"])):
+                        terminals.append(terminal)
+                actionProgress += 1
+                self.progress_bar.setValue(actionProgress)
         return terminals
 
     async def get_buy_commodities_from_terminals(self, departure_terminals):
@@ -724,7 +722,8 @@ class BestTradeRouteTab(QWidget):
                                                            buy_commodities,
                                                            destination_planets,
                                                            filter_public_hangars=False,
-                                                           filter_space_only=False):
+                                                           filter_space_only=False,
+                                                           destination_systems=[]):
         await self.ensure_initialized()
         grouped_buy_commodities_ids = []
         # Establish a GROUPED list of BUY commodities (by commodity_id)
@@ -745,11 +744,17 @@ class BestTradeRouteTab(QWidget):
                              or unfiltered_commodity["space_station_name"]))
                     and (not filter_space_only
                          or unfiltered_commodity["space_station_name"])):
-                    for destination_planet in destination_planets:
-                        if (unfiltered_commodity["id_star_system"] == destination_planet["id_star_system"]
-                            and ((not unfiltered_commodity["id_planet"] and len(destination_planets) > 1)
-                                 or (unfiltered_commodity["id_planet"] == destination_planet["id"]))):
-                            sell_commodities.append(unfiltered_commodity)
+                    if len(destination_planets) == 0:
+                        for destination_system in destination_systems:
+                            if (unfiltered_commodity["id_star_system"] == destination_system.get("id")
+                               and unfiltered_commodity["id_planet"] == 0):
+                                sell_commodities.append(unfiltered_commodity)
+                    else:
+                        for destination_planet in destination_planets:
+                            if (unfiltered_commodity["id_star_system"] == destination_planet["id_star_system"]
+                                and ((not unfiltered_commodity["id_planet"] and len(destination_planets) > 1)
+                                     or (unfiltered_commodity["id_planet"] == destination_planet["id"]))):
+                                sell_commodities.append(unfiltered_commodity)
             actionProgress += 1
             self.progress_bar.setValue(actionProgress)
         self.logger.log(logging.INFO, f"{len(sell_commodities)} Sell Commodities found.")
