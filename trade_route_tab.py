@@ -36,23 +36,9 @@ class TradeRouteTab(QWidget):
     async def initialize(self):
         async with self._lock:
             if self.config_manager is None or self.translation_manager is None or self.api is None or self.columns is None:
-                # Initial the ConfigManager instance only once
-                if ConfigManager._instance is None:
-                    self.config_manager = ConfigManager()
-                    await self.config_manager.initialize()
-                else:
-                    self.config_manager = ConfigManager._instance
-                # Initialize the API instance only once
-                if API._instance is None:
-                    self.api = API(self.config_manager)
-                    await self.api.initialize()
-                else:
-                    self.api = API._instance
-                if TranslationManager._instance is None:
-                    self.translation_manager = TranslationManager()
-                    await self.translation_manager.initialize()
-                else:
-                    self.translation_manager = TranslationManager._instance
+                self.config_manager = ConfigManager.get_instance()
+                self.api = API.get_instance(self.config_manager)
+                self.translation_manager = TranslationManager.get_instance()
                 await self.initUI()
                 self._initialized.set()
 
@@ -209,7 +195,7 @@ class TradeRouteTab(QWidget):
                         self.departure_system_combo.setCurrentIndex(self.departure_system_combo.count() - 1)
             logging.info("Systems loaded successfully.")
         except Exception as e:
-            logging.error(f"Failed to load systems: {e}")
+            logging.error("Failed to load systems: %s", e)
             QMessageBox.critical(self, await translate("error_error"),
                                  await translate("error_failed_to_load_systems") + f": {e}")
         finally:
@@ -229,9 +215,9 @@ class TradeRouteTab(QWidget):
             for planet in planets.get("data", []):
                 self.departure_planet_combo.addItem(planet["name"], planet["id"])
             self.departure_planet_combo.addItem(await translate("unknown_planet"), 0)
-            logging.info(f"Planets loaded successfully for star_system ID : {system_id}")
+            logging.info("Planets loaded successfully for star_system ID : %s", system_id)
         except Exception as e:
-            logging.error(f"Failed to load planets: {e}")
+            logging.error("Failed to load planets: %s", e)
             QMessageBox.critical(self, await translate("error_error"),
                                  await translate("error_failed_to_load_planets") + f": {e}")
 
@@ -250,19 +236,19 @@ class TradeRouteTab(QWidget):
                     self.terminals = [terminal for terminal in terminals.get("data", [])
                                       if terminal.get("type") == "commodity" and terminal.get("is_available") == 1
                                       and terminal.get("id_planet") == 0]
-                    logging.info(f"Terminals loaded successfully for system ID (Unknown planet): {system_id}")
+                    logging.info("Terminals loaded successfully for system ID (Unknown planet): %s", system_id)
             else:
                 terminals = await self.api.fetch_data("/terminals", params={'id_planet': planet_id})
                 self.terminals = [terminal for terminal in terminals.get("data", [])
                                   if terminal.get("type") == "commodity" and terminal.get("is_available") == 1]
-                logging.info(f"Terminals loaded successfully for planet ID : {planet_id}")
+                logging.info("Terminals loaded successfully for planet ID : %s", planet_id)
         except Exception as e:
-            logging.error(f"Failed to load terminals: {e}")
+            logging.error("Failed to load terminals: %s", e)
             QMessageBox.critical(self, await translate("error_error"),
                                  await translate("error_failed_to_load_terminals") + f": {e}")
         finally:
             self.filter_terminals()
-            return self.terminals
+        return self.terminals
 
     async def update_page_items(self):
         await self.ensure_initialized()
@@ -288,7 +274,6 @@ class TradeRouteTab(QWidget):
             await translate("trade_columns_departure_scu_available"),
             await translate("trade_columns_arrival_demand_scu"),
             await translate("trade_columns_profit_margin"),
-            # await translate("trade_columns_arrival_terminal_mcs"),
             await translate("trade_columns_actions")
         ]
         self.trade_route_table.setColumnCount(len(self.columns))
@@ -306,37 +291,34 @@ class TradeRouteTab(QWidget):
         self.main_progress_bar.setValue(0)
 
         try:
-            (max_scu,
-             max_investment,
-             max_outdated_days,
-             min_trade_profit,
-             departure_system_id,
-             departure_planet_id,
-             departure_terminal_id
-             ) = await self.validate_inputs()
-
-            self.current_trades = await self.fetch_and_process_departure_commodities(
-                departure_terminal_id,
-                max_scu,
-                max_investment,
-                max_outdated_days,
-                min_trade_profit,
-                departure_system_id,
-                departure_planet_id
-            )
+            await self.validate_inputs()
+            self.current_trades = await self.fetch_and_process_departure_commodities()
 
             await self.update_trade_route_table(self.current_trades, self.columns, quick=False)
         except ValueError as e:
-            self.logger.warning(f"Input Error: {e}")
+            self.logger.warning("Input Error: %s", e)
             QMessageBox.warning(self, await translate("error_input_error"), str(e))
         except Exception as e:
-            self.logger.log(logging.ERROR, f"An error occurred while finding trade routes: {e}")
+            self.logger.error("An error occurred while finding trade routes: %s", e)
             QMessageBox.critical(self, await translate("error_error"),
                                  await translate("error_generic") + f": {e}")
         finally:
             await self.main_widget.set_gui_enabled(True)
             self.progress_bar.setVisible(False)
             self.main_progress_bar.setVisible(False)
+
+    def get_validated_inputs(self):
+        max_scu = int(self.max_scu_input.text()) if self.max_scu_input.text() else sys.maxsize
+        max_investment = float(self.max_investment_input.text()) if self.max_investment_input.text() else sys.maxsize
+        max_outdated_days = int(self.max_outdated_input.text()) if self.max_outdated_input.text() else sys.maxsize
+        min_trade_profit = int(self.min_trade_profit_input.text()) if self.min_trade_profit_input.text() else 0
+        return max_scu, max_investment, max_outdated_days, min_trade_profit
+    
+    def get_ids(self):
+        departure_system_id = self.departure_system_combo.currentData()
+        departure_planet_id = self.departure_planet_combo.currentData()
+        departure_terminal_id = self.departure_terminal_combo.currentData()
+        return departure_system_id, departure_planet_id, departure_terminal_id
 
     async def validate_inputs(self):
         await self.ensure_initialized()
@@ -349,42 +331,22 @@ class TradeRouteTab(QWidget):
         if not re.match(r'^\d+$', self.min_trade_profit_input.text()) and self.min_trade_profit_input.text() != "":
             raise ValueError(await translate("trade_columns_profit_margin")
                              + " " + await translate("error_input_invalid_integer"))
-        max_scu = int(self.max_scu_input.text()) if self.max_scu_input.text() else sys.maxsize
-        max_investment = float(self.max_investment_input.text()) if self.max_investment_input.text() else sys.maxsize
-        max_outdated_days = int(self.max_outdated_input.text()) if self.max_outdated_input.text() else sys.maxsize
-        min_trade_profit = int(self.min_trade_profit_input.text()) if self.min_trade_profit_input.text() else 0
-        departure_system_id = self.departure_system_combo.currentData()
-        departure_planet_id = self.departure_planet_combo.currentData()
-        departure_terminal_id = self.departure_terminal_combo.currentData()
+        ids = self.get_ids()
+        departure_system_id = ids[0]
+        departure_terminal_id = ids[2]
         if not all([departure_system_id, departure_terminal_id]):
             raise ValueError(await translate("error_input_select_dpt"))
-        return (max_scu,
-                max_investment,
-                max_outdated_days,
-                min_trade_profit,
-                departure_system_id,
-                departure_planet_id,
-                departure_terminal_id)
+        return
 
-    async def fetch_and_process_departure_commodities(
-        self,
-        departure_terminal_id,
-        max_scu,
-        max_investment,
-        max_outdated_days,
-        min_trade_profit,
-        departure_system_id,
-        departure_planet_id
-    ):
+    async def fetch_and_process_departure_commodities(self):
         await self.ensure_initialized()
         trade_routes = []
+        departure_terminal_id = self.get_ids()[2]
         departure_commodities = await self.api.fetch_data(
             "/commodities_prices", params={'id_terminal': departure_terminal_id}
         )
-        self.logger.log(
-            logging.INFO,
-            f"Iterating through {len(departure_commodities.get('data', []))} commodities at departure terminal"
-        )
+        self.logger.info("Iterating through %s commodities at departure terminal",
+                         len(departure_commodities.get('data', [])))
         universe = len(departure_commodities.get("data", []))
         self.main_progress_bar.setMaximum(universe)
         actionProgress = 0
@@ -397,25 +359,17 @@ class TradeRouteTab(QWidget):
                 "/commodities_prices",
                 params={'id_commodity': departure_commodity.get("id_commodity")}
             )
-            self.logger.log(
-                logging.INFO,
-                f"Found {len(arrival_commodities.get('data', []))} terminals that might sell "
-                f"{departure_commodity.get('commodity_name')}"
-            )
-            trade_routes.extend(await self.process_arrival_commodities(
-                arrival_commodities, departure_commodity, max_scu, max_investment,
-                max_outdated_days, min_trade_profit,
-                departure_system_id, departure_planet_id, departure_terminal_id
-            ))
+            self.logger.info("Found %s terminals that might sell %s",
+                             len(arrival_commodities.get('data', [])),
+                             departure_commodity.get('commodity_name'))
+            trade_routes.extend(await self.process_arrival_commodities(arrival_commodities, departure_commodity))
             await self.update_trade_route_table(trade_routes, self.columns)
         self.main_progress_bar.setValue(actionProgress)
         return trade_routes
 
-    async def process_arrival_commodities(
-        self, arrival_commodities, departure_commodity, max_scu, max_investment, max_outdated_days,
-        min_trade_profit, departure_system_id, departure_planet_id, departure_terminal_id
-    ):
+    async def process_arrival_commodities(self, arrival_commodities, departure_commodity):
         await self.ensure_initialized()
+        departure_system_id, departure_planet_id, departure_terminal_id = self.get_ids()
         arrival_commodities = arrival_commodities.get("data", [])
         trade_routes = []
         universe = len(arrival_commodities)
@@ -435,20 +389,16 @@ class TradeRouteTab(QWidget):
                 continue
             if self.filter_space_only_checkbox.isChecked() and not arrival_commodity["space_station_name"]:
                 continue
-            trade_route = await self.calculate_trade_route_details(
-                arrival_commodity, departure_commodity, max_scu, max_investment, max_outdated_days,
-                min_trade_profit, departure_system_id, departure_planet_id, departure_terminal_id
-            )
+            trade_route = await self.calculate_trade_route_details(arrival_commodity, departure_commodity)
             if trade_route:
                 trade_routes.append(trade_route)
         self.progress_bar.setValue(actionProgress)
         return trade_routes
 
-    async def calculate_trade_route_details(
-        self, arrival_commodity, departure_commodity, max_scu, max_investment, max_outdated_days,
-        min_trade_profit, departure_system_id, departure_planet_id, departure_terminal_id
-    ):
+    async def calculate_trade_route_details(self, arrival_commodity, departure_commodity):
         await self.ensure_initialized()
+        max_scu, max_investment, max_outdated_days, min_trade_profit = self.get_validated_inputs()
+        departure_system_id, departure_planet_id, departure_terminal_id = self.get_ids()
         buy_price = departure_commodity.get("price_buy", 0)
         available_scu = departure_commodity.get("scu_buy", 0)
         original_available_scu = available_scu  # Store original available SCU
@@ -477,8 +427,6 @@ class TradeRouteTab(QWidget):
         if (total_margin <= 0) or (total_margin < min_trade_profit):
             return None
         profit_margin = unit_margin / buy_price
-        arrival_terminal = await self.api.fetch_data("/terminals", params={'id': arrival_commodity.get("id_terminal")})
-        arrival_terminal_mcs = arrival_terminal[0].get("mcs")
         arrival_id_star_system = arrival_commodity.get("id_star_system")
         destination = next(
             (system["name"] for system in (await self.api.fetch_data("/star_systems")).get("data", [])
@@ -508,7 +456,6 @@ class TradeRouteTab(QWidget):
             "departure_scu_available": str(original_available_scu) + " " + await translate("scu"),
             "arrival_demand_scu": str(original_demand_scu) + " " + await translate("scu"),
             "profit_margin": str(round(profit_margin * 100)) + " %",
-            "arrival_terminal_mcs": arrival_terminal_mcs,
             "departure_system_id": departure_system_id,
             "departure_planet_id": departure_planet_id,
             "departure_terminal_id": departure_terminal_id,
@@ -528,10 +475,9 @@ class TradeRouteTab(QWidget):
 
     async def update_trade_route_table(self, trade_routes, columns, quick=True):
         await self.ensure_initialized()
-        sorting_formula = self.sorting_options_combo.currentData()
-        reverse_order = True if self.sorting_order_combo.currentData() == "DESC" else False
         nb_items = 5 if quick else self.page_items_combo.currentData()
-        trade_routes.sort(key=lambda x: float(x[sorting_formula].split()[0]), reverse=reverse_order)
+        trade_routes.sort(key=lambda x: float(x[self.sorting_options_combo.currentData()].split()[0]),
+                          reverse=(self.sorting_order_combo.currentData() == "DESC"))
         self.trade_route_table.setRowCount(0)  # Clear the table before adding sorted results
         for i, route in enumerate(trade_routes[:nb_items]):
             self.trade_route_table.insertRow(i)
@@ -580,8 +526,8 @@ class TradeRouteTab(QWidget):
             QMessageBox.critical(self, await translate("error_error"), await translate("error_generic"))
 
     def set_gui_enabled(self, enabled):
-        for input in self.findChildren(QLineEdit):
-            input.setEnabled(enabled)
+        for lineedit in self.findChildren(QLineEdit):
+            lineedit.setEnabled(enabled)
         for checkbox in self.findChildren(QCheckBox):
             checkbox.setEnabled(enabled)
         for combo in self.findChildren(QComboBox):
