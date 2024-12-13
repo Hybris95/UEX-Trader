@@ -15,6 +15,15 @@ class API:
         if cls._instance is None:
             cls._instance = super(API, cls).__new__(cls)
         return cls._instance
+    
+    async def get_instance(cls, config_manager, cache_ttl=1800):
+        api = None
+        if cls._instance is None:
+            api = cls(config_manager, cache_ttl)
+            await api.initialize()
+        else:
+            api = cls._instance
+        return api
 
     def __init__(self, config_manager, cache_ttl=1800):
         if not hasattr(self, 'singleton'):  # Ensure __init__ is only called once

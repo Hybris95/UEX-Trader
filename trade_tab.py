@@ -28,24 +28,9 @@ class TradeTab(QWidget):
     async def initialize(self):
         async with self._lock:
             if self.config_manager is None or self.translation_manager is None or self.api is None:
-                # Initial the ConfigManager instance only once
-                if ConfigManager._instance is None:
-                    self.config_manager = ConfigManager()
-                    await self.config_manager.initialize()
-                else:
-                    self.config_manager = ConfigManager._instance
-                # Initialize the API instance only once
-                if API._instance is None:
-                    self.api = API(self.config_manager)
-                    await self.api.initialize()
-                else:
-                    self.api = API._instance
-                # Initialize the TranslationManager instance only once
-                if TranslationManager._instance is None:
-                    self.translation_manager = TranslationManager()
-                    await self.translation_manager.initialize()
-                else:
-                    self.translation_manager = TranslationManager._instance
+                self.config_manager = await ConfigManager.get_instance()
+                self.api = await API.get_instance(self.config_manager)
+                self.translation_manager = await TranslationManager.get_instance()
                 await self.initUI()
                 self._initialized.set()
 
@@ -135,7 +120,7 @@ class TradeTab(QWidget):
                         self.system_combo.setCurrentIndex(self.system_combo.count() - 1)
             logging.info("Systems loaded successfully.")
         except Exception as e:
-            logging.error(f"Failed to load systems: {e}")
+            logging.error("Failed to load systems: " + e)
             QMessageBox.critical(self, await translate("error_error"),
                                  await translate("error_failed_to_load_systems") + ": " + str(e))
         finally:
@@ -152,9 +137,9 @@ class TradeTab(QWidget):
             for planet in planets.get("data", []):
                 self.planet_combo.addItem(planet["name"], planet["id"])
             self.planet_combo.addItem(await translate("unknown_planet"), 0)
-            logging.info(f"Planets loaded successfully for star_system ID : {system_id}")
+            logging.info("Planets loaded successfully for star_system ID : " + system_id)
         except Exception as e:
-            logging.error(f"Failed to load planets: {e}")
+            logging.error("Failed to load planets: " + e)
             QMessageBox.critical(self, await translate("error_error"),
                                  await translate("error_failed_to_load_planets") + ": " + str(e))
 
@@ -173,19 +158,19 @@ class TradeTab(QWidget):
                     self.terminals = [terminal for terminal in terminals.get("data", [])
                                       if terminal.get("type") == "commodity" and terminal.get("is_available") == 1
                                       and terminal.get("id_planet") == 0]
-                    logging.info(f"Terminals loaded successfully for system ID (Unknown planet): {system_id}")
+                    logging.info("Terminals loaded successfully for system ID (Unknown planet): " + system_id)
             else:
                 terminals = await self.api.fetch_data("/terminals", params={'id_planet': planet_id})
                 self.terminals = [terminal for terminal in terminals.get("data", [])
                                   if terminal.get("type") == "commodity" and terminal.get("is_available") == 1]
-                logging.info(f"Terminals loaded successfully for planet ID : {planet_id}")
+                logging.info("Terminals loaded successfully for planet ID : " + planet_id)
         except Exception as e:
-            logging.error(f"Failed to load terminals: {e}")
+            logging.error("Failed to load terminals: " + e)
             QMessageBox.critical(self, await translate("error_error"),
                                  await translate("error_failed_to_load_terminals") + ": " + str(e))
         finally:
             self.filter_terminals()
-            return self.terminals
+        return self.terminals
 
     def filter_terminals(self, terminal_id=None):
         filter_text = self.terminal_filter_input.text().lower()
@@ -219,13 +204,13 @@ class TradeTab(QWidget):
                     self.commodity_buy_list.addItem(item)
                 if commodity["price_sell"] > 0:
                     self.commodity_sell_list.addItem(item)
-            logging.info(f"Commodities loaded successfully for terminal ID : {terminal_id}")
+            logging.info("Commodities loaded successfully for terminal ID : " + terminal_id)
         except Exception as e:
-            logging.error(f"Failed to load commodities: {e}")
+            logging.error("Failed to load commodities: " + e)
             QMessageBox.critical(self, await translate("error_error"),
                                  await translate("error_failed_to_load_commodities") + ": " + str(e))
 
-    def update_buy_price(self, current, previous):
+    def update_buy_price(self, current):
         if current:
             commodity_id = current.data(Qt.UserRole)
             commodity = next((c for c in self.commodities if c["id_commodity"] == commodity_id), None)
@@ -236,7 +221,7 @@ class TradeTab(QWidget):
             self.buy_price_input.clear()
             self.buy_button.setEnabled(False)
 
-    def update_sell_price(self, current, previous):
+    def update_sell_price(self, current):
         if current:
             commodity_id = current.data(Qt.UserRole)
             commodity = next((c for c in self.commodities if c["id_commodity"] == commodity_id), None)
@@ -271,8 +256,11 @@ class TradeTab(QWidget):
             quantity = self.quantity_input.text()
             price = price_input.text()
 
-            logger.debug(f"Attempting trade - Operation: {operation}, Terminal ID: {terminal_id}, "
-                         f"Commodity ID: {id_commodity}, Quantity: {quantity}, Price: {price}")
+            logger.debug("Attempting trade - Operation: " + operation
+                         + ", Terminal ID: " + terminal_id
+                         + ", Commodity ID: " + id_commodity
+                         + ", Quantity: " + quantity
+                         + ", Price: " + price)
 
             await self.validate_trade_inputs(terminal_id, id_commodity, quantity, price)
             await self.validate_terminal_and_commodity(planet_id, terminal_id, id_commodity)
@@ -294,14 +282,14 @@ class TradeTab(QWidget):
                 QMessageBox.warning(self, await translate("error_input_api_invalid"),
                                     await translate("error_input_api_invalid_details"))
             else:
-                logger.exception(f"An unexpected error occurred: {e}")
+                logger.exception("An unexpected error occurred: " + e)
                 QMessageBox.critical(self, await translate("error_error"),
                                      await translate("error_generic") + ": " + str(e))
         except ValueError as e:
-            logger.warning(f"Input Error: {e}")
+            logger.warning("Input Error: " + e)
             QMessageBox.warning(self, await translate("error_input_error"), str(e))
         except Exception as e:
-            logger.exception(f"An unexpected error occurred: {e}")
+            logger.exception("An unexpected error occurred: " + e)
             QMessageBox.critical(self, await translate("error_error"),
                                  await translate("error_generic") + ": " + str(e))
 
@@ -339,7 +327,7 @@ class TradeTab(QWidget):
     async def select_trade_route(self, trade_route, is_buy):
         logger = logging.getLogger(__name__)
         action = "buy" if is_buy else "sell"
-        logger.info(f"Selecting trade route to {action} commodity.")
+        logger.info("Selecting trade route to " + action + " commodity.")
         logger.debug(trade_route)
 
         tabManager = self.main_widget.findChild(QTabWidget)
@@ -351,20 +339,20 @@ class TradeTab(QWidget):
 
         system_id = trade_route["departure_system_id"] if is_buy else trade_route["arrival_system_id"]
         self.system_combo.setCurrentIndex(self.system_combo.findData(system_id))
-        logger.info(f"Selected system ID: {system_id}")
+        logger.info("Selected system ID: " + system_id)
         await self.update_planets()
 
         planet_id = trade_route["departure_planet_id"] if is_buy else trade_route["arrival_planet_id"]
         self.planet_combo.setCurrentIndex(self.planet_combo.findData(planet_id))
-        logger.info(f"Selected planet ID: {planet_id}")
+        logger.info("Selected planet ID: " + planet_id)
 
         terminal_id = trade_route["departure_terminal_id"] if is_buy else trade_route["arrival_terminal_id"]
         terminals = await self.update_terminals()
         if terminal_id in [terminal["id"] for terminal in terminals]:
             self.filter_terminals(terminal_id)
-            logger.info(f"Selected terminal ID: {terminal_id}")
+            logger.info("Selected terminal ID: " + terminal_id)
         else:
-            logger.warning(f"Terminal ID {terminal_id} not found in the list of terminals")
+            logger.warning("Terminal ID " + terminal_id + " not found in the list of terminals")
 
         await self.update_commodities()
 
@@ -374,19 +362,19 @@ class TradeTab(QWidget):
             item = commodity_list.item(i)
             if item.data(Qt.UserRole) == commodity_id:
                 commodity_list.setCurrentItem(item)
-                logger.info(f"Selected commodity ID: {commodity_id}")
+                logger.info("Selected commodity ID: " + commodity_id)
                 break
 
         self.quantity_input.setText(str(trade_route["max_buyable_scu"]))
-        logger.info(f"Set quantity to: {trade_route['max_buyable_scu']}")
+        logger.info("Set quantity to: " + trade_route['max_buyable_scu'])
 
         self.terminal_combo.blockSignals(False)
         self.planet_combo.blockSignals(False)
         self.system_combo.blockSignals(False)
 
     def set_gui_enabled(self, enabled):
-        for input in self.findChildren(QLineEdit):
-            input.setEnabled(enabled)
+        for lineedit in self.findChildren(QLineEdit):
+            lineedit.setEnabled(enabled)
         for combo in self.findChildren(QComboBox):
             combo.setEnabled(enabled)
         for button in self.findChildren(QPushButton):

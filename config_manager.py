@@ -17,6 +17,15 @@ class ConfigManager:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
+    
+    async def get_instance(cls, config_file="config.ini"):
+        config_manager = None
+        if cls._instance is None:
+            config_manager = cls(config_file)
+            await config_manager.initialize()
+        else:
+            config_manager = cls._instance
+        return config_manager
 
     def __init__(self, config_file="config.ini"):
         if not hasattr(self, 'singleton'):  # Ensure __init__ is only called once

@@ -13,6 +13,15 @@ class TranslationManager:
             cls._instance = super(TranslationManager, cls).__new__(cls)
         return cls._instance
 
+    async def get_instance(cls, translation_file="translations.ini"):
+        manager = None
+        if cls._instance is None:
+            manager = cls(translation_file)
+            await manager.initialize()
+        else:
+            manager = cls._instance
+        return manager
+
     def __init__(self, translation_file="translations.ini"):
         if not hasattr(self, 'singleton'):  # Ensure __init__ is only called once
             self.translation_file = translation_file
