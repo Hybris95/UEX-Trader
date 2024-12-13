@@ -434,8 +434,7 @@ class TradeRouteTab(QWidget):
             "Unknown System"
         ) + " - " + next(
             (planet["name"] for planet in (await self.api.fetch_data(
-                "/planets", params={'id_star_system': arrival_id_star_system}
-            )).get("data", [])
+                "/planets", params={'id_star_system': arrival_id_star_system})).get("data", [])
              if planet["id"] == arrival_commodity.get("id_planet")),
             "Unknown Planet"
         ) + " / " + arrival_commodity.get("terminal_name")
