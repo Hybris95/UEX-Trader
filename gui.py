@@ -31,7 +31,7 @@ class UexcorpTrader(QWidget):
                 self.config_manager = await ConfigManager.get_instance()
                 self.translation_manager = await TranslationManager.get_instance()
                 self.api = await API.get_instance(self.config_manager)
-                await self.initUI()
+                await self.init_ui()
                 await self.apply_appearance_mode(self.config_manager.get_appearance_mode())
                 self._initialized.set()
 
@@ -44,7 +44,7 @@ class UexcorpTrader(QWidget):
         await self.ensure_initialized()
         return self
 
-    async def initUI(self):
+    async def init_ui(self):
         self.setWindowTitle(await translate("window_title"))
         self.setWindowIcon(QIcon("resources/UEXTrader_icon_resized.png"))
 

@@ -39,7 +39,7 @@ class TradeRouteTab(QWidget):
                 self.config_manager = await ConfigManager.get_instance()
                 self.api = await API.get_instance(self.config_manager)
                 self.translation_manager = await TranslationManager.get_instance()
-                await self.initUI()
+                await self.init_ui()
                 self._initialized.set()
 
     async def ensure_initialized(self):
@@ -51,7 +51,7 @@ class TradeRouteTab(QWidget):
         await self.ensure_initialized()
         return self
 
-    async def initUI(self):
+    async def init_ui(self):
         layout = QVBoxLayout()
         self.max_scu_input = QLineEdit()
         self.max_scu_input.setPlaceholderText(await translate("enter") + " " + await translate("maximum")
@@ -313,7 +313,7 @@ class TradeRouteTab(QWidget):
         max_outdated_days = int(self.max_outdated_input.text()) if self.max_outdated_input.text() else sys.maxsize
         min_trade_profit = int(self.min_trade_profit_input.text()) if self.min_trade_profit_input.text() else 0
         return max_scu, max_investment, max_outdated_days, min_trade_profit
-    
+
     def get_ids(self):
         departure_system_id = self.departure_system_combo.currentData()
         departure_planet_id = self.departure_planet_combo.currentData()
@@ -349,10 +349,10 @@ class TradeRouteTab(QWidget):
                          len(departure_commodities.get('data', [])))
         universe = len(departure_commodities.get("data", []))
         self.main_progress_bar.setMaximum(universe)
-        actionProgress = 0
+        action_progress = 0
         for departure_commodity in departure_commodities.get("data", []):
-            self.main_progress_bar.setValue(actionProgress)
-            actionProgress += 1
+            self.main_progress_bar.setValue(action_progress)
+            action_progress += 1
             if departure_commodity.get("price_buy") == 0:
                 continue
             arrival_commodities = await self.api.fetch_data(
@@ -364,7 +364,7 @@ class TradeRouteTab(QWidget):
                              departure_commodity.get('commodity_name'))
             trade_routes.extend(await self.process_arrival_commodities(arrival_commodities, departure_commodity))
             await self.update_trade_route_table(trade_routes, self.columns)
-        self.main_progress_bar.setValue(actionProgress)
+        self.main_progress_bar.setValue(action_progress)
         return trade_routes
 
     async def process_arrival_commodities(self, arrival_commodities, departure_commodity):
@@ -374,10 +374,10 @@ class TradeRouteTab(QWidget):
         trade_routes = []
         universe = len(arrival_commodities)
         self.progress_bar.setMaximum(universe)
-        actionProgress = 0
+        action_progress = 0
         for arrival_commodity in arrival_commodities:
-            self.progress_bar.setValue(actionProgress)
-            actionProgress += 1
+            self.progress_bar.setValue(action_progress)
+            action_progress += 1
             if arrival_commodity.get("is_available") == 0 or arrival_commodity.get("id_terminal") == departure_terminal_id:
                 continue
             if self.filter_system_checkbox.isChecked() and arrival_commodity.get("id_star_system") != departure_system_id:
@@ -392,7 +392,7 @@ class TradeRouteTab(QWidget):
             trade_route = await self.calculate_trade_route_details(arrival_commodity, departure_commodity)
             if trade_route:
                 trade_routes.append(trade_route)
-        self.progress_bar.setValue(actionProgress)
+        self.progress_bar.setValue(action_progress)
         return trade_routes
 
     async def calculate_trade_route_details(self, arrival_commodity, departure_commodity):

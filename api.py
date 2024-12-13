@@ -15,7 +15,7 @@ class API:
         if cls._instance is None:
             cls._instance = super(API, cls).__new__(cls)
         return cls._instance
-    
+
     @staticmethod
     async def get_instance(config_manager, cache_ttl=1800):
         api = None
@@ -58,7 +58,7 @@ class API:
         if self.session:
             await self.session.close()
 
-    async def get_API_BASE_URL(self):
+    async def get_api_base_url(self):
         await self.ensure_initialized()
         if self.config_manager.get_is_production():
             return "https://uexcorp.space/api/2.0"
@@ -75,7 +75,7 @@ class API:
         if cached_data:
             logger.debug(f"Cache hit for {cache_key}")
             return cached_data
-        url = f"{await self.get_API_BASE_URL()}{endpoint}"
+        url = f"{await self.get_api_base_url()}{endpoint}"
         logger.debug(f"API Request: GET {url} {params if params else ''}")
         try:
             async with self.session.get(url, params=params) as response:
@@ -98,7 +98,7 @@ class API:
         await self.ensure_initialized()
         if not data:
             data = {}
-        url = f"{await self.get_API_BASE_URL()}{endpoint}"
+        url = f"{await self.get_api_base_url()}{endpoint}"
         logger = self.get_logger()
         # TODO - Check if endpoint is available (list of POST endpoints)
         headers = {
@@ -111,9 +111,9 @@ class API:
         try:
             async with self.session.post(url, data=data_string, headers=headers) as response:
                 if response.status == 200:
-                    responseData = await response.json()
-                    logger.debug("API Response: %s", responseData)
-                    return responseData
+                    response_data = await response.json()
+                    logger.debug("API Response: %s", response_data)
+                    return response_data
                 error_message = await response.text()
                 logger.error("API request failed with status %s: %s", response.status, error_message)
                 response.raise_for_status()  # Raise an exception for bad status codes

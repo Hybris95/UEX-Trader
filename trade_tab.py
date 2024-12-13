@@ -31,7 +31,7 @@ class TradeTab(QWidget):
                 self.config_manager = await ConfigManager.get_instance()
                 self.api = await API.get_instance(self.config_manager)
                 self.translation_manager = await TranslationManager.get_instance()
-                await self.initUI()
+                await self.init_ui()
                 self._initialized.set()
 
     async def ensure_initialized(self):
@@ -43,7 +43,7 @@ class TradeTab(QWidget):
         await self.ensure_initialized()
         return self
 
-    async def initUI(self):
+    async def init_ui(self):
         main_layout = QVBoxLayout()
         system_label = QLabel(await translate("select_system") + ":")
         self.system_combo = QComboBox()
@@ -327,8 +327,8 @@ class TradeTab(QWidget):
         logger.info("Selecting trade route to %s commodity.", action)
         logger.debug(trade_route)
 
-        tabManager = self.main_widget.findChild(QTabWidget)
-        tabManager.setCurrentIndex(1)
+        tab_manager = self.main_widget.findChild(QTabWidget)
+        tab_manager.setCurrentIndex(1)
 
         self.system_combo.blockSignals(True)
         self.planet_combo.blockSignals(True)

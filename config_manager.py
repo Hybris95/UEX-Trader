@@ -17,7 +17,7 @@ class ConfigManager:
         if cls._instance is None:
             cls._instance = super(ConfigManager, cls).__new__(cls)
         return cls._instance
-    
+
     @staticmethod
     async def get_instance(config_file="config.ini"):
         config_manager = None

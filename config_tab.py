@@ -31,7 +31,7 @@ class ConfigTab(QWidget):
             if self.config_manager is None or self.translation_manager is None or self.main_vboxlayout is None:
                 self.config_manager = await ConfigManager.get_instance()
                 self.translation_manager = await TranslationManager.get_instance()
-                await self.initUI()
+                await self.init_ui()
                 self._initialized.set()
 
     async def ensure_initialized(self):
@@ -42,7 +42,7 @@ class ConfigTab(QWidget):
     async def __aenter__(self):
         await self.ensure_initialized()
         return self
-    
+
     async def prep_api_key(self):
         # API KEY
         self.api_key_vboxlayout = QVBoxLayout()
@@ -63,7 +63,7 @@ class ConfigTab(QWidget):
         self.api_key_vboxlayout.addWidget(self.api_key_link)
         self.api_key_vboxlayout.addWidget(self.api_key_input)
         self.api_key_vboxlayout.addWidget(self.show_api_key_button)
-        
+
     async def prep_secret_key(self):
         # SECRET KEY
         self.secret_key_vboxlayout = QVBoxLayout()
@@ -123,7 +123,7 @@ class ConfigTab(QWidget):
         self.main_vboxlayout.addWidget(self.language_label)
         self.main_vboxlayout.addWidget(self.language_input)
 
-    async def initUI(self):
+    async def init_ui(self):
         self.main_vboxlayout = QVBoxLayout()
         await self.prep_api_key()
         await self.prep_secret_key()
@@ -155,7 +155,7 @@ class ConfigTab(QWidget):
     def update_lang(self):
         new_lang = self.language_input.currentData()
         self.config_manager.set_lang(new_lang)
-        asyncio.ensure_future(self.main_widget.initUI())
+        asyncio.ensure_future(self.main_widget.init_ui())
 
     def update_is_production(self):
         self.config_manager.set_is_production(self.is_production_checkbox.isChecked())
