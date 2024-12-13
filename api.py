@@ -16,13 +16,14 @@ class API:
             cls._instance = super(API, cls).__new__(cls)
         return cls._instance
     
-    async def get_instance(cls, config_manager, cache_ttl=1800):
+    @staticmethod
+    async def get_instance(config_manager, cache_ttl=1800):
         api = None
-        if cls._instance is None:
-            api = cls(config_manager, cache_ttl)
+        if API._instance is None:
+            api = API(config_manager, cache_ttl)
             await api.initialize()
         else:
-            api = cls._instance
+            api = API._instance
         return api
 
     def __init__(self, config_manager, cache_ttl=1800):

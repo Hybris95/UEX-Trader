@@ -18,13 +18,14 @@ class ConfigManager:
             cls._instance = super().__new__(cls)
         return cls._instance
     
-    async def get_instance(cls, config_file="config.ini"):
+    @staticmethod
+    async def get_instance(config_file="config.ini"):
         config_manager = None
-        if cls._instance is None:
-            config_manager = cls(config_file)
+        if ConfigManager._instance is None:
+            config_manager = ConfigManager(config_file)
             await config_manager.initialize()
         else:
-            config_manager = cls._instance
+            config_manager = ConfigManager._instance
         return config_manager
 
     def __init__(self, config_file="config.ini"):
