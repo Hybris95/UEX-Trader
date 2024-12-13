@@ -174,7 +174,7 @@ class API:
         routes = await self.fetch_data("/commodities_routes", params=params)
         return [route for route in routes.get("data", [])
                 if route.get("price_margin") > 0]
-    
+
     async def fetch_unknown_routes_from_system(self, id_system, id_destination_planet):
         unknown_terminals = await self.fetch_unknown_terminals_from_system(id_system)
         routes = []
