@@ -5,3 +5,4 @@ output/
 dist/
 build/
 main.spec
+prospector_output.json

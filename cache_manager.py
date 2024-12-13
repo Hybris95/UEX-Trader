@@ -8,13 +8,14 @@ class CacheManager:
         self.cache = {}
 
     def get(self, key):
+        data = None
         if key in self.cache:
             entry = self.cache[key]
-            if time.time() - entry['timestamp'] < self.ttl:
-                return entry['data']
+            if ((time.time() - entry['timestamp']) < self.ttl):
+                data = entry['data']
             else:
                 del self.cache[key]
-        return None
+        return data
 
     def set(self, key, data):
         self.cache[key] = {

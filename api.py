@@ -16,6 +16,16 @@ class API:
             cls._instance = super(API, cls).__new__(cls)
         return cls._instance
 
+    @staticmethod
+    async def get_instance(config_manager, cache_ttl=1800):
+        api = None
+        if API._instance is None:
+            api = API(config_manager, cache_ttl)
+            await api.initialize()
+        else:
+            api = API._instance
+        return api
+
     def __init__(self, config_manager, cache_ttl=1800):
         if not hasattr(self, 'singleton'):  # Ensure __init__ is only called once
             self.config_manager = config_manager
@@ -48,12 +58,11 @@ class API:
         if self.session:
             await self.session.close()
 
-    async def get_API_BASE_URL(self):
+    async def get_api_base_url(self):
         await self.ensure_initialized()
         if self.config_manager.get_is_production():
             return "https://uexcorp.space/api/2.0"
-        else:
-            return "https://uexcorp.space/api/2.0"
+        return "https://uexcorp.space/api/2.0"
 
     def get_logger(self):
         return logging.getLogger(__name__)
@@ -66,7 +75,7 @@ class API:
         if cached_data:
             logger.debug(f"Cache hit for {cache_key}")
             return cached_data
-        url = f"{await self.get_API_BASE_URL()}{endpoint}"
+        url = f"{await self.get_api_base_url()}{endpoint}"
         logger.debug(f"API Request: GET {url} {params if params else ''}")
         try:
             async with self.session.get(url, params=params) as response:
@@ -75,10 +84,9 @@ class API:
                     logger.debug(f"API Response: {data}")
                     self.cache.set(cache_key, data)
                     return data
-                else:
-                    error_message = await response.text()
-                    logger.error(f"API request failed with status {response.status}: {error_message}")
-                    response.raise_for_status()  # Raise an exception for bad status codes
+                error_message = await response.text()
+                logger.error(f"API request failed with status {response.status}: {error_message}")
+                response.raise_for_status()  # Raise an exception for bad status codes
         except aiohttp.ClientResponseError as e:
             logger.error(f"API request failed with status {e.status}: {e.message} - {e.request_info.url}")
             raise  # Re-raise the exception to be handled by the calling function
@@ -86,9 +94,11 @@ class API:
             logger.error(f"API request failed: {e}")
             raise  # Re-raise the exception to be handled by the calling function
 
-    async def post_data(self, endpoint, data={}):
+    async def post_data(self, endpoint, data=None):
         await self.ensure_initialized()
-        url = f"{await self.get_API_BASE_URL()}{endpoint}"
+        if not data:
+            data = {}
+        url = f"{await self.get_api_base_url()}{endpoint}"
         logger = self.get_logger()
         # TODO - Check if endpoint is available (list of POST endpoints)
         headers = {
@@ -97,22 +107,21 @@ class API:
         }
         data['is_production'] = int(self.config_manager.get_is_production())
         data_string = json.dumps(data)
-        logger.debug(f"API Request: POST {url} {data_string}")
+        logger.debug("API Request: POST %s %s", url, data_string)
         try:
             async with self.session.post(url, data=data_string, headers=headers) as response:
                 if response.status == 200:
-                    responseData = await response.json()
-                    logger.debug(f"API Response: {responseData}")
-                    return responseData
-                else:
-                    error_message = await response.text()
-                    logger.error(f"API request failed with status {response.status}: {error_message}")
-                    response.raise_for_status()  # Raise an exception for bad status codes
+                    response_data = await response.json()
+                    logger.debug("API Response: %s", response_data)
+                    return response_data
+                error_message = await response.text()
+                logger.error("API request failed with status %s: %s", response.status, error_message)
+                response.raise_for_status()  # Raise an exception for bad status codes
         except aiohttp.ClientResponseError as e:
-            logger.error(f"API request failed with status {e.status}: {e.message} - {e.request_info.url}")
+            logger.error("API request failed with status %s: %s - %s", e.status, e.message, e.request_info.url)
             raise  # Re-raise the exception to be handled by the calling function
         except aiohttp.ClientError as e:
-            logger.error(f"API request failed: {e}")
+            logger.error("API request failed: %s", e)
             raise  # Re-raise the exception to be handled by the calling function
 
     async def fetch_commodities_by_id(self, id_commodity):
