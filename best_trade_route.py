@@ -319,6 +319,23 @@ class BestTradeRouteTab(QWidget):
                 self.progress_bar.setValue(action_progress)
         return planets
 
+    def check_unknown_planets(self, departure_planet_id, destination_planet_id):
+        if departure_planet_id == "unknown_planet" or destination_planet_id == "unknown_planet":
+            raise ValueError("User Trades is not compatible with Unknown Planet search")
+
+    async def get_departure_planets(self, departure_planet_id, departure_system_id):
+        if departure_planet_id == "all_planets":
+            return await self.api.fetch_planets(departure_system_id)
+        elif departure_planet_id != "unknown_planet":
+            return await self.api.fetch_planets(departure_system_id, departure_planet_id)
+        return []
+
+    async def get_destination_systems(self, destination_system_id, departure_system_id):
+        if not destination_system_id:
+            return await self.api.fetch_systems_from_origin_system(departure_system_id, 2)
+        else:
+            return await self.api.fetch_system(destination_system_id)
+
     async def find_best_trade_routes_users(self):
         await self.ensure_initialized()
         self.logger.info("Searching for Best Trade Routes")
@@ -340,24 +357,14 @@ class BestTradeRouteTab(QWidget):
             min_trade_profit = inputs[3]
             departure_system_id, departure_planet_id, destination_system_id, destination_planet_id = \
                 await self.get_selected_ids()
+            self.check_unknown_planets(departure_planet_id, destination_planet_id)
 
-            if departure_planet_id == "unknown_planet" or destination_planet_id == "unknown_planet":
-                raise ValueError("User Trades is not compatible with Unknown Planet search")
-
-            departure_planets = []
-            if departure_planet_id == "all_planets":
-                departure_planets = await self.api.fetch_planets(departure_system_id)
-            elif departure_planet_id != "unknown_planet":
-                departure_planets = await self.api.fetch_planets(departure_system_id, departure_planet_id)
+            departure_planets = await self.get_departure_planets(departure_planet_id, departure_system_id)
             self.logger.info("%s departure planets found", len(departure_planets))
             current_progress += 1
             self.main_progress_bar.setValue(current_progress)
 
-            destination_systems = []
-            if not destination_system_id:
-                destination_systems = await self.api.fetch_systems_from_origin_system(departure_system_id, 2)
-            else:
-                destination_systems = await self.api.fetch_system(destination_system_id)
+            destination_systems = await self.get_destination_systems(destination_system_id, departure_system_id)
             self.logger.info("%s destination systems found", len(destination_systems))
             current_progress += 1
             self.main_progress_bar.setValue(current_progress)
@@ -373,6 +380,14 @@ class BestTradeRouteTab(QWidget):
             universe = len(departure_planets) * len(destination_planets)
             self.progress_bar.setMaximum(universe)
             action_progress = 0
+            if len(departure_planets) > 1:
+                universe = universe + len(destination_planets)
+                self.progress_bar.setMaximum(universe)
+                for destination_planet in destination_planets:
+                    commodities_routes.extend(await self.api.fetch_unknown_routes_from_system(departure_system_id,
+                                                                                              destination_planet["id"]))
+                    action_progress += 1
+                    self.progress_bar.setValue(action_progress)
             for departure_planet in departure_planets:
                 for destination_planet in destination_planets:
                     commodities_routes.extend(await self.api.fetch_routes(departure_planet["id"], destination_planet["id"]))
@@ -562,36 +577,33 @@ class BestTradeRouteTab(QWidget):
         await self.ensure_initialized()
         terminals = []
         universe = len(filtering_planets)
+        returned_terminals = []
         # Get all terminals (filter by system/planet) from /terminals
         if universe == 0 and filtering_system_id:
             self.progress_bar.setMaximum(1)
             action_progress = 0
-            returned_terminals = [terminal for terminal in await self.api.fetch_terminals(filtering_system_id)
-                                  if terminal.get("id_planet") == 0]
-            for terminal in returned_terminals:
-                if ((not filter_public_hangars
-                    or (terminal["city_name"]
-                        or terminal["space_station_name"]))
-                    and (not filter_space_only
-                         or terminal["space_station_name"])):
-                    terminals.append(terminal)
+            returned_terminals.extend([terminal for terminal in await self.api.fetch_terminals(filtering_system_id)
+                                       if terminal.get("id_planet") == 0])
             action_progress += 1
             self.progress_bar.setValue(action_progress)
         else:
             self.progress_bar.setMaximum(universe)
             action_progress = 0
+            if universe > 1 and filtering_system_id:
+                returned_terminals.extend([terminal for terminal in await self.api.fetch_terminals(filtering_system_id)
+                                           if terminal.get("id_planet") == 0])
             for planet in filtering_planets:
-                returned_terminals = await self.api.fetch_terminals(planet["id_star_system"],
-                                                                    planet["id"])
-                for terminal in returned_terminals:
-                    if ((not filter_public_hangars
-                        or (terminal["city_name"]
-                            or terminal["space_station_name"]))
-                        and (not filter_space_only
-                             or terminal["space_station_name"])):
-                        terminals.append(terminal)
+                returned_terminals.extend((await self.api.fetch_terminals(planet["id_star_system"],
+                                                                          planet["id"])))
                 action_progress += 1
                 self.progress_bar.setValue(action_progress)
+        for terminal in returned_terminals:
+            if ((not filter_public_hangars
+                or (terminal["city_name"]
+                    or terminal["space_station_name"]))
+                and (not filter_space_only
+                     or terminal["space_station_name"])):
+                terminals.append(terminal)
         return terminals
 
     async def get_buy_commodities_from_terminals(self, departure_terminals):
