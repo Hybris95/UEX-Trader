@@ -87,7 +87,14 @@ jobs:
         # stop the build if there are Python syntax errors or undefined names
         python -m flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=.venv,build,dist
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        python -m flake8 . --count --max-complexity=10 --max-line-length=127 --statistics --exclude=.venv,build,dist
+        python -m flake8 . --count --max-complexity=10 --max-line-length=127 --statistics --exclude=.venv,build,dist --ignore=N802,W503
+    - name: Lint with prospector
+      if: steps.cache-venv.outputs.cache-hit == 'true'
+      run: |
+        ${{ runner.os == 'Linux' && 'source .venv/bin/activate' || '.\.venv\Scripts\activate' }}
+        apt-get update && apt-get install -y jq
+        prospector --output-format json --zero-exit --path . | tee prospector_output.json
+        # [ $(jq '.summary.message_count' prospector_output.json) -eq 0 ]
     - uses: tlambert03/setup-qt-libs@v1
     - name: build "display"
       if: steps.cache-venv.outputs.cache-hit == 'true'

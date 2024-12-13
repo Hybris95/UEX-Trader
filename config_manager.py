@@ -13,10 +13,20 @@ class ConfigManager:
     _lock = asyncio.Lock()
     _initialized = asyncio.Event()
 
-    def __new__(cls):
+    def __new__(cls, *args, **kwargs):
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
+            cls._instance = super(ConfigManager, cls).__new__(cls)
         return cls._instance
+
+    @staticmethod
+    async def get_instance(config_file="config.ini"):
+        config_manager = None
+        if ConfigManager._instance is None:
+            config_manager = ConfigManager(config_file)
+            await config_manager.initialize()
+        else:
+            config_manager = ConfigManager._instance
+        return config_manager
 
     def __init__(self, config_file="config.ini"):
         if not hasattr(self, 'singleton'):  # Ensure __init__ is only called once
@@ -46,7 +56,7 @@ class ConfigManager:
         self.config.read(self.config_file)
 
     def save_config(self):
-        with open(self.config_file, "w") as f:
+        with open(file=self.config_file, mode="w", encoding='utf-8') as f:
             self.config.write(f)
 
     def get_api_key(self):
