@@ -29,18 +29,8 @@ class ConfigTab(QWidget):
     async def initialize(self):
         async with self._lock:
             if self.config_manager is None or self.translation_manager is None or self.main_vboxlayout is None:
-                # Initial the ConfigManager instance only once
-                if ConfigManager._instance is None:
-                    self.config_manager = ConfigManager()
-                    await self.config_manager.initialize()
-                else:
-                    self.config_manager = ConfigManager._instance
-                # Initialize the TranslationManager instance only once
-                if TranslationManager._instance is None:
-                    self.translation_manager = TranslationManager()
-                    await self.translation_manager.initialize()
-                else:
-                    self.translation_manager = TranslationManager._instance
+                self.config_manager = await ConfigManager.get_instance()
+                self.translation_manager = await TranslationManager.get_instance()
                 await self.initUI()
                 self._initialized.set()
 
@@ -52,10 +42,8 @@ class ConfigTab(QWidget):
     async def __aenter__(self):
         await self.ensure_initialized()
         return self
-
-    async def initUI(self):
-        self.main_vboxlayout = QVBoxLayout()
-
+    
+    async def prep_api_key(self):
         # API KEY
         self.api_key_vboxlayout = QVBoxLayout()
         self.api_key_label = QLabel(await translate("config_uexcorp_apikey") + ":")
@@ -75,7 +63,8 @@ class ConfigTab(QWidget):
         self.api_key_vboxlayout.addWidget(self.api_key_link)
         self.api_key_vboxlayout.addWidget(self.api_key_input)
         self.api_key_vboxlayout.addWidget(self.show_api_key_button)
-
+        
+    async def prep_secret_key(self):
         # SECRET KEY
         self.secret_key_vboxlayout = QVBoxLayout()
         self.secret_key_label = QLabel(await translate("config_uexcorp_secretkey") + ":")
@@ -97,22 +86,25 @@ class ConfigTab(QWidget):
         self.secret_key_vboxlayout.addWidget(self.secret_key_input)
         self.secret_key_vboxlayout.addWidget(self.show_secret_key_button)
 
+    async def prep_is_production(self):
         self.is_production_checkbox = QCheckBox(await translate("config_isproduction"))
         self.is_production_checkbox.setChecked(self.config_manager.get_is_production())
         self.is_production_checkbox.stateChanged.connect(self.update_is_production)
 
+    async def prep_debug(self):
         self.debug_checkbox = QCheckBox(await translate("config_debugmode"))
         self.debug_checkbox.setChecked(self.config_manager.get_debug())
         self.debug_checkbox.stateChanged.connect(self.update_debug_mode)
 
+    async def prep_appearance(self):
         self.appearance_label = QLabel(await translate("config_appearancemode") + ":")
         self.appearance_input = QComboBox()
         self.appearance_input.addItem(await translate("appearance_dark"), "Dark")
         self.appearance_input.addItem(await translate("appearance_light"), "Light")
         self.appearance_input.setCurrentIndex(self.appearance_input.findData(self.config_manager.get_appearance_mode()))
         self.appearance_input.currentIndexChanged.connect(self.update_appearance_mode)
-        self.update_appearance_mode()
 
+    async def prep_language(self):
         self.language_label = QLabel(await translate("config_language") + ":")
         self.language_input = QComboBox()
         langs = self.translation_manager.get_available_lang()
@@ -121,6 +113,7 @@ class ConfigTab(QWidget):
         self.language_input.setCurrentIndex(self.language_input.findData(self.config_manager.get_lang()))
         self.language_input.currentIndexChanged.connect(self.update_lang)
 
+    async def populate_main_layout(self):
         self.main_vboxlayout.addLayout(self.api_key_vboxlayout)
         self.main_vboxlayout.addLayout(self.secret_key_vboxlayout)
         self.main_vboxlayout.addWidget(self.is_production_checkbox)
@@ -130,6 +123,16 @@ class ConfigTab(QWidget):
         self.main_vboxlayout.addWidget(self.language_label)
         self.main_vboxlayout.addWidget(self.language_input)
 
+    async def initUI(self):
+        self.main_vboxlayout = QVBoxLayout()
+        await self.prep_api_key()
+        await self.prep_secret_key()
+        await self.prep_is_production()
+        await self.prep_debug()
+        await self.prep_appearance()
+        self.update_appearance_mode()
+        await self.prep_language()
+        await self.populate_main_layout()
         self.setLayout(self.main_vboxlayout)
 
     def show_api_key(self):
@@ -167,8 +170,8 @@ class ConfigTab(QWidget):
         self.config_manager.set_secret_key(self.secret_key_input.text())
 
     def set_gui_enabled(self, enabled):
-        for input in self.findChildren(QLineEdit):
-            input.setEnabled(enabled)
+        for lineedit in self.findChildren(QLineEdit):
+            lineedit.setEnabled(enabled)
         for combo in self.findChildren(QComboBox):
             combo.setEnabled(enabled)
         for button in self.findChildren(QPushButton):

@@ -20,16 +20,6 @@ def days_difference_from_now(timestamp):
 
 
 async def translate(key):
-    config_manager = None
-    translation_manager = None
-    if ConfigManager._instance is None:
-        config_manager = ConfigManager()
-        await config_manager.initialize()
-    else:
-        config_manager = ConfigManager._instance
-    if TranslationManager._instance is None:
-        translation_manager = TranslationManager()
-        await translation_manager.initialize()
-    else:
-        translation_manager = TranslationManager._instance
+    config_manager = await ConfigManager.get_instance()
+    translation_manager = await TranslationManager.get_instance()
     return translation_manager.get_translation(key, config_manager.get_lang())

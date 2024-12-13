@@ -28,21 +28,9 @@ class UexcorpTrader(QWidget):
     async def initialize(self):
         async with self._lock:
             if self.config_manager is None or self.translation_manager is None or self.api is None:
-                if ConfigManager._instance is None:
-                    self.config_manager = ConfigManager()
-                    await self.config_manager.initialize()
-                else:
-                    self.config_manager = ConfigManager._instance
-                if TranslationManager._instance is None:
-                    self.translation_manager = TranslationManager()
-                    await self.translation_manager.initialize()
-                else:
-                    self.translation_manager = TranslationManager._instance
-                if API._instance is None:
-                    self.api = API(self.config_manager)
-                    await self.api.initialize()
-                else:
-                    self.api = API._instance
+                self.config_manager = await ConfigManager.get_instance()
+                self.translation_manager = await TranslationManager.get_instance()
+                self.api = await API.get_instance(self.config_manager)
                 await self.initUI()
                 await self.apply_appearance_mode(self.config_manager.get_appearance_mode())
                 self._initialized.set()

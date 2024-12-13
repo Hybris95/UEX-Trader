@@ -36,9 +36,9 @@ class TradeRouteTab(QWidget):
     async def initialize(self):
         async with self._lock:
             if self.config_manager is None or self.translation_manager is None or self.api is None or self.columns is None:
-                self.config_manager = ConfigManager.get_instance()
-                self.api = API.get_instance(self.config_manager)
-                self.translation_manager = TranslationManager.get_instance()
+                self.config_manager = await ConfigManager.get_instance()
+                self.api = await API.get_instance(self.config_manager)
+                self.translation_manager = await TranslationManager.get_instance()
                 await self.initUI()
                 self._initialized.set()
 
