@@ -174,6 +174,22 @@ class API:
         routes = await self.fetch_data("/commodities_routes", params=params)
         return [route for route in routes.get("data", [])
                 if route.get("price_margin") > 0]
+    
+    async def fetch_unknown_routes_from_system(self, id_system, id_destination_planet):
+        unknown_terminals = await self.fetch_unknown_terminals_from_system(id_system)
+        routes = []
+        for unknown_terminal in unknown_terminals:
+            params = {'id_terminal_origin': unknown_terminal["id"],
+                      'id_planet_destination': id_destination_planet}
+            routes.extend((await self.fetch_data("/commodities_routes", params=params)).get("data", []))
+        return [route for route in routes
+                if route.get("price_margin") > 0]
+
+    async def fetch_unknown_terminals_from_system(self, id_system):
+        params = {'id_star_system': id_system}
+        terminals = (await self.fetch_data("/terminals", params=params)).get("data", [])
+        return [terminal for terminal in terminals
+                if terminal.get("id_planet") == 0 and terminal.get("is_available") == 1]
 
     async def perform_trade(self, data):
         """Performs a trade operation (buy/sell)."""

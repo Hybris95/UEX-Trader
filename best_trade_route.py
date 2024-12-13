@@ -373,6 +373,13 @@ class BestTradeRouteTab(QWidget):
             universe = len(departure_planets) * len(destination_planets)
             self.progress_bar.setMaximum(universe)
             action_progress = 0
+            if len(departure_planets) > 1:
+                universe = universe + len(destination_planets)
+                self.progress_bar.setMaximum(universe)
+                for destination_planet in destination_planets:
+                    commodities_routes.extend(await self.api.fetch_unknown_routes_from_system(departure_system_id, destination_planet["id"]))
+                    action_progress += 1
+                    self.progress_bar.setValue(action_progress)
             for departure_planet in departure_planets:
                 for destination_planet in destination_planets:
                     commodities_routes.extend(await self.api.fetch_routes(departure_planet["id"], destination_planet["id"]))
@@ -562,36 +569,33 @@ class BestTradeRouteTab(QWidget):
         await self.ensure_initialized()
         terminals = []
         universe = len(filtering_planets)
+        returned_terminals = []
         # Get all terminals (filter by system/planet) from /terminals
         if universe == 0 and filtering_system_id:
             self.progress_bar.setMaximum(1)
             action_progress = 0
-            returned_terminals = [terminal for terminal in await self.api.fetch_terminals(filtering_system_id)
-                                  if terminal.get("id_planet") == 0]
-            for terminal in returned_terminals:
-                if ((not filter_public_hangars
-                    or (terminal["city_name"]
-                        or terminal["space_station_name"]))
-                    and (not filter_space_only
-                         or terminal["space_station_name"])):
-                    terminals.append(terminal)
+            returned_terminals.extend([terminal for terminal in await self.api.fetch_terminals(filtering_system_id)
+                                       if terminal.get("id_planet") == 0])
             action_progress += 1
             self.progress_bar.setValue(action_progress)
         else:
             self.progress_bar.setMaximum(universe)
             action_progress = 0
+            if universe > 1 and filtering_system_id:
+                returned_terminals.extend([terminal for terminal in await self.api.fetch_terminals(filtering_system_id)
+                                           if terminal.get("id_planet") == 0])
             for planet in filtering_planets:
-                returned_terminals = await self.api.fetch_terminals(planet["id_star_system"],
-                                                                    planet["id"])
-                for terminal in returned_terminals:
-                    if ((not filter_public_hangars
-                        or (terminal["city_name"]
-                            or terminal["space_station_name"]))
-                        and (not filter_space_only
-                             or terminal["space_station_name"])):
-                        terminals.append(terminal)
+                returned_terminals.extend((await self.api.fetch_terminals(planet["id_star_system"],
+                                                                          planet["id"])))
                 action_progress += 1
                 self.progress_bar.setValue(action_progress)
+        for terminal in returned_terminals:
+            if ((not filter_public_hangars
+                or (terminal["city_name"]
+                    or terminal["space_station_name"]))
+                and (not filter_space_only
+                        or terminal["space_station_name"])):
+                terminals.append(terminal)
         return terminals
 
     async def get_buy_commodities_from_terminals(self, departure_terminals):
