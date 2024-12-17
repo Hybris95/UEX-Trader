@@ -240,16 +240,14 @@ class BestTradeRouteTab(QWidget):
     async def load_systems(self):
         try:
             await self.ensure_initialized()
-            systems = await self.api.fetch_data("/star_systems")
-            for system in systems.get("data", []):
-                if system.get("is_available") == 1:
-                    self.departure_system_combo.blockSignals(True)
-                    self.departure_system_combo.addItem(system["name"], system["id"])
-                    self.destination_system_combo.blockSignals(True)
-                    self.destination_system_combo.addItem(system["name"], system["id"])
-                    if system.get("is_default") == 1:
-                        self.departure_system_combo.blockSignals(False)
-                        self.departure_system_combo.setCurrentIndex(self.departure_system_combo.count() - 1)
+            for system in (await self.api.fetch_all_systems()):
+                self.departure_system_combo.blockSignals(True)
+                self.departure_system_combo.addItem(system["name"], system["id"])
+                self.destination_system_combo.blockSignals(True)
+                self.destination_system_combo.addItem(system["name"], system["id"])
+                if system.get("is_default") == 1:
+                    self.departure_system_combo.blockSignals(False)
+                    self.departure_system_combo.setCurrentIndex(self.departure_system_combo.count() - 1)
             logging.info("Systems loaded successfully.")
         except Exception as e:
             logging.error("Failed to load systems: %s", e)
