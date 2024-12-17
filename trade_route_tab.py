@@ -29,7 +29,7 @@ class TradeRouteTab(QWidget):
         self.translation_manager = None
         self.columns = None
         self.logger = logging.getLogger(__name__)
-        self.terminals = []
+        self._terminals_unfiltered = []
         self.current_trades = []
         asyncio.ensure_future(self.load_systems())
 
@@ -185,14 +185,12 @@ class TradeRouteTab(QWidget):
         try:
             await self.ensure_initialized()
             self.departure_system_combo.clear()
-            systems = await self.api.fetch_data("/star_systems")
-            for system in systems.get("data", []):
-                if system.get("is_available") == 1:
-                    self.departure_system_combo.blockSignals(True)
-                    self.departure_system_combo.addItem(system["name"], system["id"])
-                    if system.get("is_default") == 1:
-                        self.departure_system_combo.blockSignals(False)
-                        self.departure_system_combo.setCurrentIndex(self.departure_system_combo.count() - 1)
+            for system in (await self.api.fetch_all_systems()):
+                self.departure_system_combo.blockSignals(True)
+                self.departure_system_combo.addItem(system["name"], system["id"])
+                if system.get("is_default") == 1:
+                    self.departure_system_combo.blockSignals(False)
+                    self.departure_system_combo.setCurrentIndex(self.departure_system_combo.count() - 1)
             logging.info("Systems loaded successfully.")
         except Exception as e:
             logging.error("Failed to load systems: %s", e)
@@ -206,13 +204,12 @@ class TradeRouteTab(QWidget):
         self.departure_planet_combo.clear()
         self.departure_terminal_combo.clear()
         self.terminal_filter_input.clear()  # Clear the filter input here
-        self.terminals = []
+        self._terminals_unfiltered = []
         system_id = self.departure_system_combo.currentData()
         if not system_id:
             return
         try:
-            planets = await self.api.fetch_data("/planets", params={'id_star_system': system_id})
-            for planet in planets.get("data", []):
+            for planet in (await self.api.fetch_planets(system_id)):
                 self.departure_planet_combo.addItem(planet["name"], planet["id"])
             self.departure_planet_combo.addItem(await translate("unknown_planet"), 0)
             logging.info("Planets loaded successfully for star_system ID : %s", system_id)
@@ -225,22 +222,17 @@ class TradeRouteTab(QWidget):
         await self.ensure_initialized()
         self.departure_terminal_combo.clear()
         self.terminal_filter_input.clear()  # Ensure the filter input is cleared when updating terminals
-        self.terminals = []
+        self._terminals_unfiltered = []
         planet_id = self.departure_planet_combo.currentData()
         system_id = self.departure_system_combo.currentData()
         try:
-            terminals = []
             if not planet_id:
                 if system_id:
-                    terminals = await self.api.fetch_data("/terminals", params={'id_star_system': system_id})
-                    self.terminals = [terminal for terminal in terminals.get("data", [])
-                                      if terminal.get("type") == "commodity" and terminal.get("is_available") == 1
-                                      and terminal.get("id_planet") == 0]
+                    self._terminals_unfiltered = [terminal for terminal in (await self.api.fetch_terminals(system_id))
+                                                  if terminal.get("id_planet") == 0]
                     logging.info("Terminals loaded successfully for system ID (Unknown planet): %s", system_id)
             else:
-                terminals = await self.api.fetch_data("/terminals", params={'id_planet': planet_id})
-                self.terminals = [terminal for terminal in terminals.get("data", [])
-                                  if terminal.get("type") == "commodity" and terminal.get("is_available") == 1]
+                self._terminals_unfiltered = await self.api.fetch_terminals_from_planet(planet_id)
                 logging.info("Terminals loaded successfully for planet ID : %s", planet_id)
         except Exception as e:
             logging.error("Failed to load terminals: %s", e)
@@ -248,7 +240,6 @@ class TradeRouteTab(QWidget):
                                  await translate("error_failed_to_load_terminals") + f": {e}")
         finally:
             self.filter_terminals()
-        return self.terminals
 
     async def update_page_items(self):
         await self.ensure_initialized()
@@ -257,7 +248,7 @@ class TradeRouteTab(QWidget):
     def filter_terminals(self):
         filter_text = self.terminal_filter_input.text().lower()
         self.departure_terminal_combo.clear()
-        for terminal in self.terminals:
+        for terminal in self._terminals_unfiltered:
             if filter_text in terminal["name"].lower():
                 self.departure_terminal_combo.addItem(terminal["name"], terminal["id"])
 
@@ -342,25 +333,19 @@ class TradeRouteTab(QWidget):
         await self.ensure_initialized()
         trade_routes = []
         departure_terminal_id = self.get_ids()[2]
-        departure_commodities = await self.api.fetch_data(
-            "/commodities_prices", params={'id_terminal': departure_terminal_id}
-        )
-        self.logger.info("Iterating through %s commodities at departure terminal",
-                         len(departure_commodities.get('data', [])))
-        universe = len(departure_commodities.get("data", []))
+        departure_commodities = await self.api.fetch_commodities_from_terminal(departure_terminal_id)
+        universe = len(departure_commodities)
+        self.logger.info("Iterating through %s commodities at departure terminal", universe)
         self.main_progress_bar.setMaximum(universe)
         action_progress = 0
-        for departure_commodity in departure_commodities.get("data", []):
+        for departure_commodity in departure_commodities:
             self.main_progress_bar.setValue(action_progress)
             action_progress += 1
             if departure_commodity.get("price_buy") == 0:
                 continue
-            arrival_commodities = await self.api.fetch_data(
-                "/commodities_prices",
-                params={'id_commodity': departure_commodity.get("id_commodity")}
-            )
+            arrival_commodities = await self.api.fetch_commodities_by_id(departure_commodity.get("id_commodity"))
             self.logger.info("Found %s terminals that might sell %s",
-                             len(arrival_commodities.get('data', [])),
+                             len(arrival_commodities),
                              departure_commodity.get('commodity_name'))
             trade_routes.extend(await self.process_arrival_commodities(arrival_commodities, departure_commodity))
             await self.update_trade_route_table(trade_routes, self.columns)
@@ -370,7 +355,6 @@ class TradeRouteTab(QWidget):
     async def process_arrival_commodities(self, arrival_commodities, departure_commodity):
         await self.ensure_initialized()
         departure_system_id, departure_planet_id, departure_terminal_id = self.get_ids()
-        arrival_commodities = arrival_commodities.get("data", [])
         trade_routes = []
         universe = len(arrival_commodities)
         self.progress_bar.setMaximum(universe)
@@ -429,15 +413,13 @@ class TradeRouteTab(QWidget):
         profit_margin = unit_margin / buy_price
         arrival_id_star_system = arrival_commodity.get("id_star_system")
         destination = next(
-            (system["name"] for system in (await self.api.fetch_data("/star_systems")).get("data", [])
-             if system["id"] == arrival_id_star_system),
-            "Unknown System"
-        ) + " - " + next(
-            (planet["name"] for planet in (await self.api.fetch_data(
-                "/planets", params={'id_star_system': arrival_id_star_system})).get("data", [])
-             if planet["id"] == arrival_commodity.get("id_planet")),
-            "Unknown Planet"
-        ) + " / " + arrival_commodity.get("terminal_name")
+            (system["name"] for system in (await self.api.fetch_system(arrival_id_star_system))),
+            translate("unknown_system"))
+        + " - " + next(
+            (planet["name"] for planet in (await self.api.fetch_planets(arrival_id_star_system,
+                                                                        arrival_commodity.get("id_planet")))),
+            translate("unknown_planet"))
+        + " / " + arrival_commodity.get("terminal_name")
         distance = await self.api.fetch_distance(departure_commodity["id_terminal"],
                                                  arrival_commodity["id_terminal"],
                                                  departure_commodity["id_commodity"])
