@@ -4,6 +4,7 @@ import aiohttp
 import json
 from cache_manager import CacheManager
 import asyncio
+import traceback
 
 
 class API:
@@ -67,7 +68,7 @@ class API:
     def get_logger(self):
         return logging.getLogger(__name__)
 
-    async def fetch_data(self, endpoint, params=None):
+    async def _fetch_data(self, endpoint, params=None):
         await self.ensure_initialized()
         cache_key = f"{endpoint}_{params}"
         cached_data = self.cache.get(cache_key)
@@ -93,8 +94,13 @@ class API:
         except aiohttp.ClientError as e:
             logger.error(f"API request failed: {e}")
             raise  # Re-raise the exception to be handled by the calling function
+        except Exception as e:
+            logger.error(f"Generic API error: {e}")
+            if self.config_manager.get_debug():
+                logging.debug(traceback.format_exc())
+            raise  # Re-raise the exception to be handled by the calling function
 
-    async def post_data(self, endpoint, data=None):
+    async def _post_data(self, endpoint, data=None):
         await self.ensure_initialized()
         if not data:
             data = {}
@@ -123,24 +129,29 @@ class API:
         except aiohttp.ClientError as e:
             logger.error("API request failed: %s", e)
             raise  # Re-raise the exception to be handled by the calling function
+        except Exception as e:
+            logger.error(f"Generic API error: {e}")
+            if self.config_manager.get_debug():
+                logging.debug(traceback.format_exc())
+            raise  # Re-raise the exception to be handled by the calling function
 
     async def fetch_commodities_by_id(self, id_commodity):
         params = {'id_commodity': id_commodity}
-        commodities = await self.fetch_data("/commodities_prices", params=params)
+        commodities = await self._fetch_data("/commodities_prices", params=params)
         return commodities.get("data", [])
 
     async def fetch_commodities_from_terminal(self, id_terminal, id_commodity=None):
         params = {'id_terminal': id_terminal}
         if id_commodity:
             params['id_commodity'] = id_commodity
-        commodities = await self.fetch_data("/commodities_prices", params=params)
+        commodities = await self._fetch_data("/commodities_prices", params=params)
         return commodities.get("data", [])
 
     async def fetch_planets(self, system_id=None, planet_id=None):
         params = {}
         if system_id:
             params = {'id_star_system': system_id}
-        planets = await self.fetch_data("/planets", params=params)
+        planets = await self._fetch_data("/planets", params=params)
         return [planet for planet in planets.get("data", [])
                 if planet.get("is_available") == 1 and (not planet_id or planet.get("id") == planet_id)]
 
@@ -148,21 +159,32 @@ class API:
         params = {'id_star_system': system_id}
         if planet_id:
             params['id_planet'] = planet_id
-        terminals = await self.fetch_data("/terminals", params=params)
+        terminals = await self._fetch_data("/terminals", params=params)
         return [terminal for terminal in terminals.get("data", [])
                 if terminal.get("type") == "commodity" and terminal.get("is_available") == 1
                 and (not terminal_id or terminal.get("id") == terminal_id)]
 
+    async def fetch_terminals_from_planet(self, planet_id):
+        params = {'id_planet': planet_id}
+        terminals = await self._fetch_data("/terminals", params=params)
+        return [terminal for terminal in terminals.get("data", [])
+                if terminal.get("type") == "commodity" and terminal.get("is_available") == 1]
+
+    async def fetch_all_systems(self):
+        systems = await self._fetch_data("/star_systems")
+        return [system for system in systems.get("data", [])
+                if system.get("is_available") == 1]
+
     async def fetch_systems_from_origin_system(self, origin_system_id, max_bounce=1):
         params = {}
         # TODO - Return systems linked to origin_system_id with a maximum of "max_bounce" hops - API does not give this for now
-        systems = await self.fetch_data("/star_systems", params=params)
+        systems = await self._fetch_data("/star_systems", params=params)
         return [system for system in systems.get("data", [])
                 if system.get("is_available") == 1]
 
     async def fetch_system(self, system_id):
         params = {}
-        systems = await self.fetch_data("/star_systems", params=params)
+        systems = await self._fetch_data("/star_systems", params=params)
         return [system for system in systems.get("data", [])
                 if system.get("is_available") == 1
                 and system.get("id") == system_id]
@@ -171,7 +193,7 @@ class API:
         params = {'id_planet_origin': id_planet_origin}
         if id_planet_destination:
             params['id_planet_destination'] = id_planet_destination
-        routes = await self.fetch_data("/commodities_routes", params=params)
+        routes = await self._fetch_data("/commodities_routes", params=params)
         return [route for route in routes.get("data", [])
                 if route.get("price_margin") > 0]
 
@@ -181,20 +203,20 @@ class API:
         for unknown_terminal in unknown_terminals:
             params = {'id_terminal_origin': unknown_terminal["id"],
                       'id_planet_destination': id_destination_planet}
-            routes.extend((await self.fetch_data("/commodities_routes", params=params)).get("data", []))
+            routes.extend((await self._fetch_data("/commodities_routes", params=params)).get("data", []))
         return [route for route in routes
                 if route.get("price_margin") > 0]
 
     async def fetch_unknown_terminals_from_system(self, id_system):
         params = {'id_star_system': id_system}
-        terminals = (await self.fetch_data("/terminals", params=params)).get("data", [])
+        terminals = (await self._fetch_data("/terminals", params=params)).get("data", [])
         return [terminal for terminal in terminals
                 if terminal.get("id_planet") == 0 and terminal.get("is_available") == 1]
 
     async def perform_trade(self, data):
         """Performs a trade operation (buy/sell)."""
         # TODO - Check if data is formed properly considering user_trades_add endpoint
-        return await self.post_data("/user_trades_add/", data)
+        return await self._post_data("/user_trades_add/", data)
 
     async def fetch_distance(self, id_terminal_origin, id_terminal_destination, id_commodity):
         params = {
@@ -202,7 +224,7 @@ class API:
             'id_terminal_destination': id_terminal_destination,
             'id_commodity': id_commodity
         }
-        routes = await self.fetch_data("/commodities_routes", params=params)
+        routes = await self._fetch_data("/commodities_routes", params=params)
         for route in routes.get("data", []):
             if route.get("distance", 1) is None:
                 return 1
