@@ -9,6 +9,7 @@ from api import API
 from config_manager import ConfigManager
 from translation_manager import TranslationManager
 from tools import translate
+import traceback
 
 
 class TradeTab(QWidget):
@@ -119,6 +120,8 @@ class TradeTab(QWidget):
             logging.info("Systems loaded successfully.")
         except Exception as e:
             logging.error("Failed to load systems: %s", e)
+            if self.config_manager.get_debug():
+                logging.debug(traceback.format_exc())
             QMessageBox.critical(self, await translate("error_error"),
                                  await translate("error_failed_to_load_systems") + ": " + str(e))
         finally:
@@ -137,6 +140,8 @@ class TradeTab(QWidget):
             logging.info("Planets loaded successfully for star_system ID : %s", system_id)
         except Exception as e:
             logging.error("Failed to load planets: %s", e)
+            if self.config_manager.get_debug():
+                logging.debug(traceback.format_exc())
             QMessageBox.critical(self, await translate("error_error"),
                                  await translate("error_failed_to_load_planets") + ": " + str(e))
 
@@ -158,6 +163,8 @@ class TradeTab(QWidget):
                 logging.info("Terminals loaded successfully for planet ID : %s", planet_id)
         except Exception as e:
             logging.error("Failed to load terminals: %s", e)
+            if self.config_manager.get_debug():
+                logging.debug(traceback.format_exc())
             QMessageBox.critical(self, await translate("error_error"),
                                  await translate("error_failed_to_load_terminals") + ": " + str(e))
         finally:
@@ -198,6 +205,8 @@ class TradeTab(QWidget):
             logging.info("Commodities loaded successfully for terminal ID : %s", terminal_id)
         except Exception as e:
             logging.error("Failed to load commodities: %s", e)
+            if self.config_manager.get_debug():
+                logging.debug(traceback.format_exc())
             QMessageBox.critical(self, await translate("error_error"),
                                  await translate("error_failed_to_load_commodities") + ": " + str(e))
 
@@ -280,6 +289,8 @@ class TradeTab(QWidget):
             QMessageBox.warning(self, await translate("error_input_error"), str(e))
         except Exception as e:
             logger.exception("An unexpected error occurred: %s", e)
+            if self.config_manager.get_debug():
+                logging.debug(traceback.format_exc())
             QMessageBox.critical(self, await translate("error_error"),
                                  await translate("error_generic") + ": " + str(e))
 
