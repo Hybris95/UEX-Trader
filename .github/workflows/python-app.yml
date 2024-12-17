@@ -159,6 +159,11 @@ jobs:
     - name: Sign Executable on Ubuntu
       if: matrix.os == 'ubuntu-latest' && env.SIGN_EXECUTABLE == 'true'
       run: |
+        echo "Downloading and installing osslsigncode..."
+        sudo apt-get update
+        sudo apt-get install -y osslsigncode
+        echo "osslsigncode installed."
+        echo "Signing the executable..."
         osslsigncode sign -certs ${{ secrets.CERTIFICATE }} -key ${{ secrets.PRIVATE_KEY }} -n "UEX-Trader" -in dist/UEX-Trader/UEX-Trader -out dist/UEX-Trader/UEX-Trader
     - name: Upload Compiled Executables
       uses: actions/upload-artifact@v4.4.3
