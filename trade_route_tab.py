@@ -15,6 +15,7 @@ from config_manager import ConfigManager
 from trade_tab import TradeTab
 from translation_manager import TranslationManager
 from tools import create_async_callback, days_difference_from_now, translate
+import traceback
 
 
 class TradeRouteTab(QWidget):
@@ -194,6 +195,8 @@ class TradeRouteTab(QWidget):
             logging.info("Systems loaded successfully.")
         except Exception as e:
             logging.error("Failed to load systems: %s", e)
+            if self.config_manager.get_debug():
+                logging.debug(traceback.format_exc())
             QMessageBox.critical(self, await translate("error_error"),
                                  await translate("error_failed_to_load_systems") + f": {e}")
         finally:
@@ -215,6 +218,8 @@ class TradeRouteTab(QWidget):
             logging.info("Planets loaded successfully for star_system ID : %s", system_id)
         except Exception as e:
             logging.error("Failed to load planets: %s", e)
+            if self.config_manager.get_debug():
+                logging.debug(traceback.format_exc())
             QMessageBox.critical(self, await translate("error_error"),
                                  await translate("error_failed_to_load_planets") + f": {e}")
 
@@ -236,6 +241,8 @@ class TradeRouteTab(QWidget):
                 logging.info("Terminals loaded successfully for planet ID : %s", planet_id)
         except Exception as e:
             logging.error("Failed to load terminals: %s", e)
+            if self.config_manager.get_debug():
+                logging.debug(traceback.format_exc())
             QMessageBox.critical(self, await translate("error_error"),
                                  await translate("error_failed_to_load_terminals") + f": {e}")
         finally:
@@ -291,6 +298,8 @@ class TradeRouteTab(QWidget):
             QMessageBox.warning(self, await translate("error_input_error"), str(e))
         except Exception as e:
             self.logger.error("An error occurred while finding trade routes: %s", e)
+            if self.config_manager.get_debug():
+                logging.debug(traceback.format_exc())
             QMessageBox.critical(self, await translate("error_error"),
                                  await translate("error_generic") + f": {e}")
         finally:

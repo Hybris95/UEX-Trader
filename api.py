@@ -4,6 +4,7 @@ import aiohttp
 import json
 from cache_manager import CacheManager
 import asyncio
+import traceback
 
 
 class API:
@@ -93,6 +94,11 @@ class API:
         except aiohttp.ClientError as e:
             logger.error(f"API request failed: {e}")
             raise  # Re-raise the exception to be handled by the calling function
+        except Exception as e:
+            logger.error(f"Generic API error: {e}")
+            if self.config_manager.get_debug():
+                logging.debug(traceback.format_exc())
+            raise  # Re-raise the exception to be handled by the calling function
 
     async def _post_data(self, endpoint, data=None):
         await self.ensure_initialized()
@@ -122,6 +128,11 @@ class API:
             raise  # Re-raise the exception to be handled by the calling function
         except aiohttp.ClientError as e:
             logger.error("API request failed: %s", e)
+            raise  # Re-raise the exception to be handled by the calling function
+        except Exception as e:
+            logger.error(f"Generic API error: {e}")
+            if self.config_manager.get_debug():
+                logging.debug(traceback.format_exc())
             raise  # Re-raise the exception to be handled by the calling function
 
     async def fetch_commodities_by_id(self, id_commodity):

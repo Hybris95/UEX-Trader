@@ -251,6 +251,8 @@ class BestTradeRouteTab(QWidget):
             logging.info("Systems loaded successfully.")
         except Exception as e:
             logging.error("Failed to load systems: %s", e)
+            if self.config_manager.get_debug():
+                logging.debug(traceback.format_exc())
             QMessageBox.critical(self, await translate("error_error"),
                                  await translate("error_failed_to_load_systems") + f": {e}")
         finally:
@@ -273,6 +275,8 @@ class BestTradeRouteTab(QWidget):
             logging.info("Departure planets loaded successfully for star_system ID : %s", system_id)
         except Exception as e:
             logging.error("Failed to load departure planets: %s", e)
+            if self.config_manager.get_debug():
+                logging.debug(traceback.format_exc())
             QMessageBox.critical(self, await translate("error_error"),
                                  await translate("error_failed_to_load_departure_planets") + f": {e}")
 
@@ -295,6 +299,8 @@ class BestTradeRouteTab(QWidget):
             logging.info("Destination planets loaded successfully for star_system ID : %s", system_id)
         except Exception as e:
             logging.error("Failed to load destination planets: %s", e)
+            if self.config_manager.get_debug():
+                logging.debug(traceback.format_exc())
             QMessageBox.critical(self, await translate("error_error"),
                                  await translate("error_failed_to_load_destination_planets") + f": {e}")
 
@@ -409,6 +415,8 @@ class BestTradeRouteTab(QWidget):
             QMessageBox.warning(self, await translate("error_input_error"), str(e))
         except Exception as e:
             self.logger.error("An error occurred while finding best trade routes: %s", e)
+            if self.config_manager.get_debug():
+                logging.debug(traceback.format_exc())
             QMessageBox.critical(self, await translate("error_error"),
                                  await translate("error_generic") + f": {e}")
         finally:
@@ -516,10 +524,9 @@ class BestTradeRouteTab(QWidget):
             self.logger.warning("Input Error: %s", e)
             QMessageBox.warning(self, await translate("error_input_error"), str(e))
         except Exception as e:
+            self.logger.error("An error occurred while finding best trade routes: %s", e)
             if self.config_manager.get_debug():
-                traceback.print_exc()
-            else:
-                self.logger.error("An error occurred while finding best trade routes: %s", e)
+                logging.debug(traceback.format_exc())
             QMessageBox.critical(self, await translate("error_error"),
                                  await translate("error_generic") + f": {e}")
         finally:
