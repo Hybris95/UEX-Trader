@@ -74,7 +74,7 @@ jobs:
       run: |
         echo "Cache was not loaded successfully"
         exit 1
-    - name: Activate venv
+    - name: Test Activate venv
       if: steps.cache-venv.outputs.cache-hit == 'true'
       run: |
         ${{ runner.os == 'Linux' && 'source .venv/bin/activate' || '.\.venv\Scripts\activate' }}
@@ -138,13 +138,10 @@ jobs:
       run: |
         echo "Cache was not loaded successfully"
         exit 1
-    - name: Activate venv
-      if: steps.cache-venv.outputs.cache-hit == 'true'
-      run: |
-        ${{ runner.os == 'Linux' && 'source .venv/bin/activate' || '.\.venv\Scripts\activate' }}
     - name: Build with PyInstaller
       if: steps.cache-venv.outputs.cache-hit == 'true'
       run: |
+        ${{ runner.os == 'Linux' && 'source .venv/bin/activate' || '.\.venv\Scripts\activate' }}
         pyinstaller --onedir --name "UEX-Trader" --windowed --icon ./resources/uextrader_icon_resized_idL_icon.ico --add-data ./resources/UEXTrader_icon_resized.png:resources/UEXTrader_icon_resized.png --clean --strip main.py
     - name: Sign Executable on Windows
       if: matrix.os == 'windows-latest' && env.SIGN_EXECUTABLE == 'true'
