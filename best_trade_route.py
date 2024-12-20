@@ -246,8 +246,9 @@ class BestTradeRouteTab(QWidget):
             logging.error("Failed to load systems: %s", e)
             if self.config_manager.get_debug():
                 logging.debug(traceback.format_exc())
-            QMessageBox.critical(self, await translate("error_error"),
-                                 await translate("error_failed_to_load_systems") + f": {e}")
+            self.main_widget.show_messagebox(await translate("error_error"),
+                                             await translate("error_failed_to_load_systems") + f": {e}",
+                                             QMessageBox.Icon.Critical)
         finally:
             self.departure_system_combo.blockSignals(False)
             self.destination_system_combo.blockSignals(False)
@@ -270,8 +271,9 @@ class BestTradeRouteTab(QWidget):
             logging.error("Failed to load departure planets: %s", e)
             if self.config_manager.get_debug():
                 logging.debug(traceback.format_exc())
-            QMessageBox.critical(self, await translate("error_error"),
-                                 await translate("error_failed_to_load_departure_planets") + f": {e}")
+            self.main_widget.show_messagebox(await translate("error_error"),
+                                             await translate("error_failed_to_load_departure_planets") + f": {e}",
+                                             QMessageBox.Icon.Critical)
 
     async def update_destination_planets(self):
         await self.ensure_initialized()
@@ -294,8 +296,9 @@ class BestTradeRouteTab(QWidget):
             logging.error("Failed to load destination planets: %s", e)
             if self.config_manager.get_debug():
                 logging.debug(traceback.format_exc())
-            QMessageBox.critical(self, await translate("error_error"),
-                                 await translate("error_failed_to_load_destination_planets") + f": {e}")
+            self.main_widget.show_messagebox(await translate("error_error"),
+                                             await translate("error_failed_to_load_destination_planets") + f": {e}",
+                                             QMessageBox.Icon.Critical)
 
     async def update_page_items(self):
         await self.ensure_initialized()
@@ -399,13 +402,14 @@ class BestTradeRouteTab(QWidget):
             self.logger.info("Finished calculating Best Trade Routes : %s found", len(self.current_trades))
         except ValueError as e:
             self.logger.warning("Input Error: %s", e)
-            QMessageBox.warning(self, await translate("error_input_error"), str(e))
+            self.main_widget.show_messagebox(await translate("error_input_error"), str(e), QMessageBox.Icon.Warning)
         except Exception as e:
             self.logger.error("An error occurred while finding best trade routes: %s", e)
             if self.config_manager.get_debug():
                 logging.debug(traceback.format_exc())
-            QMessageBox.critical(self, await translate("error_error"),
-                                 await translate("error_generic") + f": {e}")
+            self.main_widget.show_messagebox(await translate("error_error"),
+                                             await translate("error_generic") + f": {e}",
+                                             QMessageBox.Icon.Critical)
         finally:
             await self.main_widget.set_gui_enabled(True)
             self.progress_bar.setVisible(False)
@@ -727,7 +731,9 @@ class BestTradeRouteTab(QWidget):
             self.main_widget.loop.create_task(trade_tab.select_trade_route(trade_route, is_buy=True))
         else:
             self.logger.log(logging.ERROR, "An error occurred while selecting trade route")
-            QMessageBox.critical(self, await translate("error_error"), await translate("error_generic"))
+            self.main_widget.show_messagebox(await translate("error_error"),
+                                             await translate("error_generic"),
+                                             QMessageBox.Icon.Critical)
 
     async def select_to_sell(self, trade_route):
         await self.ensure_initialized()
@@ -737,7 +743,9 @@ class BestTradeRouteTab(QWidget):
             self.main_widget.loop.create_task(trade_tab.select_trade_route(trade_route, is_buy=False))
         else:
             self.logger.log(logging.ERROR, "An error occurred while selecting trade route")
-            QMessageBox.critical(self, await translate("error_error"), await translate("error_generic"))
+            self.main_widget.show_messagebox(await translate("error_error"),
+                                             await translate("error_generic"),
+                                             QMessageBox.Icon.Critical)
 
     def set_gui_enabled(self, enabled):
         for lineedit in self.findChildren(QLineEdit):

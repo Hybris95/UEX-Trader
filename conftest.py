@@ -19,6 +19,6 @@ async def config_manager(trader):
 
 @pytest_asyncio.fixture
 async def trader(qapp):
-    trader = UexcorpTrader(qapp, asyncio.get_event_loop())
+    trader = UexcorpTrader(qapp, asyncio.get_event_loop(), show_qmessagebox=False)
     await trader.initialize()
     yield trader

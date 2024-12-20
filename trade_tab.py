@@ -122,8 +122,9 @@ class TradeTab(QWidget):
             logging.error("Failed to load systems: %s", e)
             if self.config_manager.get_debug():
                 logging.debug(traceback.format_exc())
-            QMessageBox.critical(self, await translate("error_error"),
-                                 await translate("error_failed_to_load_systems") + ": " + str(e))
+            self.main_widget.show_messagebox(await translate("error_error"),
+                                             await translate("error_failed_to_load_systems") + ": " + str(e),
+                                             QMessageBox.Icon.Critical)
         finally:
             self.system_combo.blockSignals(False)
 
@@ -142,8 +143,9 @@ class TradeTab(QWidget):
             logging.error("Failed to load planets: %s", e)
             if self.config_manager.get_debug():
                 logging.debug(traceback.format_exc())
-            QMessageBox.critical(self, await translate("error_error"),
-                                 await translate("error_failed_to_load_planets") + ": " + str(e))
+            self.main_widget.show_messagebox(await translate("error_error"),
+                                             await translate("error_failed_to_load_planets") + ": " + str(e),
+                                             QMessageBox.Icon.Critical)
 
     async def update_terminals(self):
         await self.ensure_initialized()
@@ -165,8 +167,9 @@ class TradeTab(QWidget):
             logging.error("Failed to load terminals: %s", e)
             if self.config_manager.get_debug():
                 logging.debug(traceback.format_exc())
-            QMessageBox.critical(self, await translate("error_error"),
-                                 await translate("error_failed_to_load_terminals") + ": " + str(e))
+            self.main_widget.show_messagebox(await translate("error_error"),
+                                             await translate("error_failed_to_load_terminals") + ": " + str(e),
+                                             QMessageBox.Icon.Critical)
         finally:
             self.filter_terminals()
         return self._unfiltered_terminals
@@ -207,8 +210,9 @@ class TradeTab(QWidget):
             logging.error("Failed to load commodities: %s", e)
             if self.config_manager.get_debug():
                 logging.debug(traceback.format_exc())
-            QMessageBox.critical(self, await translate("error_error"),
-                                 await translate("error_failed_to_load_commodities") + ": " + str(e))
+            self.main_widget.show_messagebox(await translate("error_error"),
+                                             await translate("error_failed_to_load_commodities") + ": " + str(e),
+                                             QMessageBox.Icon.Critical)
 
     def update_buy_price(self, current):
         if current:
@@ -244,7 +248,8 @@ class TradeTab(QWidget):
         await self.ensure_initialized()
         selected_item = commodity_list.currentItem()
         if not selected_item:
-            QMessageBox.warning(self, await translate("error_error"), await translate("error_input_select_comm"))
+            self.main_widget.show_messagebox(await translate("error_error"), await translate("error_input_select_comm"),
+                                             QMessageBox.Icon.Warning)
             return
 
         operation = "buy" if is_buy else "sell"
@@ -278,21 +283,25 @@ class TradeTab(QWidget):
         except aiohttp.ClientResponseError as e:
             if e.status == 403:
                 logger.warning("API Key given is absent or invalid")
-                QMessageBox.warning(self, await translate("error_input_api_invalid"),
-                                    await translate("error_input_api_invalid_details"))
+                self.main_widget.show_messagebox(await translate("error_input_api_invalid"),
+                                                 await translate("error_input_api_invalid_details"),
+                                                 QMessageBox.Icon.Warning)
             else:
                 logger.exception("An unexpected error occurred: %s", e)
-                QMessageBox.critical(self, await translate("error_error"),
-                                     await translate("error_generic") + ": " + str(e))
+                self.main_widget.show_messagebox(await translate("error_error"),
+                                                 await translate("error_generic") + ": " + str(e),
+                                                 QMessageBox.Icon.Critical)
         except ValueError as e:
             logger.warning("Input Error: %s", e)
-            QMessageBox.warning(self, await translate("error_input_error"), str(e))
+            self.main_widget.show_messagebox(await translate("error_input_error"), str(e),
+                                             QMessageBox.Icon.Warning)
         except Exception as e:
             logger.exception("An unexpected error occurred: %s", e)
             if self.config_manager.get_debug():
                 logging.debug(traceback.format_exc())
-            QMessageBox.critical(self, await translate("error_error"),
-                                 await translate("error_generic") + ": " + str(e))
+            self.main_widget.show_messagebox(await translate("error_error"),
+                                             await translate("error_generic") + ": " + str(e),
+                                             QMessageBox.Icon.Critical)
 
     async def validate_trade_inputs(self, terminal_id, id_commodity, quantity, price):
         await self.ensure_initialized()
@@ -315,14 +324,16 @@ class TradeTab(QWidget):
         if result and "data" in result and "id_user_trade" in result["data"]:
             trade_id = result["data"].get('id_user_trade')
             logger.info("Trade successful! Trade ID: %s", trade_id)
-            QMessageBox.information(self, await translate("success_success"),
-                                    await translate("success_trade_successful") + "!\n"
-                                    + await translate("trade_id") + f": {trade_id}")
+            self.main_widget.show_messagebox(await translate("success_success"),
+                                             await translate("success_trade_successful") + "!\n"
+                                             + await translate("trade_id") + f": {trade_id}",
+                                             QMessageBox.Icon.Information)
         else:
             error_message = result.get('message', 'Unknown error')
             logger.error("Trade failed: %s", error_message)
-            QMessageBox.critical(self, await translate("error_error"),
-                                 await translate("error_trade_failed") + f": {error_message}")
+            self.main_widget.show_messagebox(await translate("error_error"),
+                                             await translate("error_trade_failed") + f": {error_message}",
+                                             QMessageBox.Icon.Critical)
 
     async def select_trade_route(self, trade_route, is_buy):
         logger = logging.getLogger(__name__)
