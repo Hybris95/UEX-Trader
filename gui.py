@@ -1,5 +1,5 @@
 # gui.py
-from PyQt5.QtWidgets import QApplication, QTabWidget, QVBoxLayout, QWidget, QStyleFactory
+from PyQt5.QtWidgets import QApplication, QTabWidget, QVBoxLayout, QWidget, QStyleFactory, QMessageBox
 from PyQt5.QtGui import QIcon, QPalette, QColor
 from PyQt5.QtCore import Qt
 from config_tab import ConfigTab
@@ -17,13 +17,14 @@ class UexcorpTrader(QWidget):
     _lock = asyncio.Lock()
     _initialized = asyncio.Event()
 
-    def __init__(self, app, loop):
+    def __init__(self, app, loop, show_qmessagebox=True):
         super().__init__()
         self.app = app
         self.loop = loop
         self.config_manager = None
         self.translation_manager = None
         self.api = None
+        self.show_qmessagebox = show_qmessagebox
 
     async def initialize(self):
         async with self._lock:
@@ -121,3 +122,19 @@ class UexcorpTrader(QWidget):
         self.tradeTab.set_gui_enabled(enabled)
         self.tradeRouteTab.set_gui_enabled(enabled)
         self.bestTradeRouteTab.set_gui_enabled(enabled)
+
+    def show_messagebox(self, title, text, criticity=QMessageBox.Icon.Information):
+        if self.show_qmessagebox:
+            match criticity:
+                case QMessageBox.Icon.Critical:
+                    QMessageBox.critical(self, title, text)
+                    return
+                case QMessageBox.Icon.Warning:
+                    QMessageBox.warning(self, title, text)
+                    return
+                case QMessageBox.Icon.Question:
+                    QMessageBox.question(self, title, text)
+                    return
+                case _:
+                    QMessageBox.information(self, title, text)
+                    return
