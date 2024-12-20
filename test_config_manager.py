@@ -78,3 +78,16 @@ async def test_get_language(config_manager):
     config_manager.set_lang("fr")
     assert config_manager.get_lang() == "fr"
     config_manager.set_lang("en")
+
+
+@pytest.mark.asyncio
+async def test_get_version(config_manager):
+    await config_manager.set_version('ptu')
+    assert config_manager.get_version() == 'ptu'
+    assert (await config_manager.get_version_value()) == '4.0'
+
+
+@pytest.mark.asyncio
+async def default_test_get_version(config_manager):
+    assert config_manager.get_version() == 'live'
+    assert (await config_manager.get_version_value()) == '4.0'

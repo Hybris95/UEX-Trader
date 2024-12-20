@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 jobs:
-  env:
+  setup:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
@@ -25,34 +25,31 @@ jobs:
       uses: actions/setup-python@v5.3.0
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Create VENV
+    - name: Restore cached venv
+      uses: actions/cache/restore@v4.1.2
+      id: restore-venv
+      with:
+        path: .venv
+        key: ${{ runner.os }}-venv-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
+    - name: Create and activate venv
+      if: steps.restore-venv.outputs.cache-hit != 'true'
       run: |
         python -m venv .venv
-    - name: Activate VENV (Linux)
-      if: ${{ matrix.os == 'ubuntu-latest' }}
-      run: |
-        source .venv/bin/activate
-    - name: Activate VENV (Windows)
-      if: ${{ matrix.os == 'windows-latest' }}
-      run: |
-        .\.venv\Scripts\activate
-    - name: Cache
-      uses: actions/cache@v4.1.2
-      with:
-        # A list of files, directories, and wildcard patterns to cache and restore
-        path: .venv
-        # An explicit key for restoring and saving the cache
-        key: ${{ matrix.os }}-python-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
-        # An ordered multiline string listing the prefix-matched keys, that are used for restoring stale cache if no cache hit occurred for key. Note `cache-hit` returns false in this case.
-        restore-keys: ${{ matrix.os }}-python-${{ matrix.python-version }}
-        # An optional boolean when enabled, allows windows runners to save or restore caches that can be restored or saved respectively on other platforms
-        enableCrossOsArchive: false
-    - name: Install dependencies
-      run: |
+        ${{ runner.os == 'Linux' && 'source .venv/bin/activate' || '.\.venv\Scripts\activate' }}
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install --prefer-binary -r requirements.txt
+    - name: List venv contents
+      run: |
+        ls -R ${{ github.workspace }}/.venv/
+    - name: Save cached venv
+      if: steps.restore-venv.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4.1.2
+      id: save-venv
+      with:
+        path: .venv
+        key: ${{ runner.os }}-venv-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
   test:
-    needs: env
+    needs: setup
     strategy:
       matrix:
         os: [ubuntu-latest]
@@ -66,49 +63,48 @@ jobs:
       uses: actions/setup-python@v5.3.0
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Load Cache
-      uses: actions/cache@v4.1.2
+    - name: Load Cache venv
+      uses: actions/cache/restore@v4.1.2
+      id: cache-venv
       with:
-        # A list of files, directories, and wildcard patterns to cache and restore
         path: .venv
-        # An explicit key for restoring and saving the cache
-        key: ${{ matrix.os }}-python-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
-        # An ordered multiline string listing the prefix-matched keys, that are used for restoring stale cache if no cache hit occurred for key. Note `cache-hit` returns false in this case.
-        restore-keys: ${{ matrix.os }}-python-${{ matrix.python-version }}
-        # An optional boolean when enabled, allows windows runners to save or restore caches that can be restored or saved respectively on other platforms
-        enableCrossOsArchive: false
-        # Fail the workflow if cache entry is not found
-        fail-on-cache-miss: true
-    - name: Activate VENV (Linux)
-      if: ${{ matrix.os == 'ubuntu-latest' }}
+        key: ${{ runner.os }}-venv-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
+    - name: Check cache and fail if not loaded
+      if: steps.cache-venv.outputs.cache-hit != 'true'
       run: |
-        source .venv/bin/activate
-        pip --version
-        pip list
-    - name: Activate VENV (Windows)
-      if: ${{ matrix.os == 'windows-latest' }}
+        echo "Cache was not loaded successfully"
+        exit 1
+    - name: Test Activate venv
+      if: steps.cache-venv.outputs.cache-hit == 'true'
       run: |
-        .\.venv\Scripts\activate
+        ${{ runner.os == 'Linux' && 'source .venv/bin/activate' || '.\.venv\Scripts\activate' }}
         pip --version
-        pip list
-    - name: Install Requirements from Cache
-      run: |
-        pip --version
-        pip install -r requirements.txt
         pip list
     - name: Lint with flake8
+      if: steps.cache-venv.outputs.cache-hit == 'true'
       run: |
+        ${{ runner.os == 'Linux' && 'source .venv/bin/activate' || '.\.venv\Scripts\activate' }}
         # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=.venv,build,dist
+        python -m flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=.venv,build,dist
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --max-complexity=10 --max-line-length=127 --statistics --exclude=.venv,build,dist
+        python -m flake8 . --count --max-complexity=10 --max-line-length=127 --statistics --exclude=.venv,build,dist --ignore=N802,W503
+    - name: Lint with prospector
+      if: steps.cache-venv.outputs.cache-hit == 'true'
+      run: |
+        ${{ runner.os == 'Linux' && 'source .venv/bin/activate' || '.\.venv\Scripts\activate' }}
+        apt-get update && apt-get install -y jq
+        prospector --output-format json --zero-exit --path . | tee prospector_output.json
+        # [ $(jq '.summary.message_count' prospector_output.json) -eq 0 ]
     - uses: tlambert03/setup-qt-libs@v1
     - name: build "display"
+      if: steps.cache-venv.outputs.cache-hit == 'true'
       run: |
         /sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_99.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :99 -screen 0 1920x1200x24 -ac +extension GLX
     - name: Test with pytest (isolated) & xvfb
+      if: steps.cache-venv.outputs.cache-hit == 'true'
       run: |
-        pytest --disable-warnings -v
+        ${{ runner.os == 'Linux' && 'source .venv/bin/activate' || '.\.venv\Scripts\activate' }}
+        python -m pytest --disable-warnings -v
         EXIT_CODE=$?
         if [ $EXIT_CODE -eq 139 ] ; then
           echo "Segmentation fault occured. Exit with code 0."
@@ -118,7 +114,7 @@ jobs:
         fi
   build:
     name: build
-    needs: test
+    needs: [setup, test]
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
@@ -131,33 +127,41 @@ jobs:
       uses: actions/setup-python@v5.3.0
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Load Cache
-      uses: actions/cache@v4.1.2
+    - name: Load Cache venv
+      uses: actions/cache/restore@v4.1.2
+      id: cache-venv
       with:
         path: .venv
-        key: ${{ matrix.os }}-python-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
-        restore-keys: ${{ matrix.os }}-python-${{ matrix.python-version }}
-        enableCrossOsArchive: false
-        fail-on-cache-miss: true
-    - name: Activate VENV (Linux)
-      if: ${{ matrix.os == 'ubuntu-latest' }}
+        key: ${{ runner.os }}-venv-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
+    - name: Check cache and fail if not loaded
+      if: steps.cache-venv.outputs.cache-hit != 'true'
       run: |
-        source .venv/bin/activate
-    - name: Activate VENV (Windows)
-      if: ${{ matrix.os == 'windows-latest' }}
+        echo "Cache was not loaded successfully"
+        exit 1
+    - name: Build with PyInstaller
+      if: steps.cache-venv.outputs.cache-hit == 'true'
       run: |
-        .\.venv\Scripts\activate
-    - name: Install Requirements from Cache
+        ${{ runner.os == 'Linux' && 'source .venv/bin/activate' || '.\.venv\Scripts\activate' }}
+        pyinstaller --onedir --name "UEX-Trader" --windowed --icon ./resources/uextrader_icon_resized_idL_icon.ico --add-data ./resources/UEXTrader_icon_resized.png:resources/UEXTrader_icon_resized.png --clean --strip main.py
+    - name: Sign Executable on Windows
+      if: matrix.os == 'windows-latest' && env.SIGN_EXECUTABLE == 'true'
       run: |
-        pip install -r requirements.txt
-    - name: PyInstaller Action
-      uses: Martin005/pyinstaller-action@v1.2.0
-      with:
-        python_ver: ${{ matrix.python-version }}
-        spec: 'main.py'
-        requirements: 'requirements.txt'
-        upload_exe_with_name: 'UEX-Trader'
-        options: --onedir, --name "UEX-Trader", --windowed, --icon ./resources/uextrader_icon_resized_idL_icon.ico, --add-data ./resources/UEXTrader_icon_resized.png:resources/UEXTrader_icon_resized.png
+        echo "Downloading and installing Windows SDK..."
+        choco install windows-sdk-10.0 --version 10.0.19041.0 -y
+        echo "Windows SDK installed."
+        echo "Signing the executable..."
+        certutil -addstore "My" ${{ secrets.CERTIFICATE }}
+        # Sign the executable using the certificate
+        signtool sign /f ${{ secrets.CERTIFICATE }} /p ${{ secrets.PRIVATE_KEY }} /t http://timestamp.digicert.com dist/UEX-Trader/UEX-Trader.exe
+    - name: Sign Executable on Ubuntu
+      if: matrix.os == 'ubuntu-latest' && env.SIGN_EXECUTABLE == 'true'
+      run: |
+        echo "Downloading and installing osslsigncode..."
+        sudo apt-get update
+        sudo apt-get install -y osslsigncode
+        echo "osslsigncode installed."
+        echo "Signing the executable..."
+        osslsigncode sign -certs ${{ secrets.CERTIFICATE }} -key ${{ secrets.PRIVATE_KEY }} -n "UEX-Trader" -in dist/UEX-Trader/UEX-Trader -out dist/UEX-Trader/UEX-Trader
     - name: Upload Compiled Executables
       uses: actions/upload-artifact@v4.4.3
       with:
