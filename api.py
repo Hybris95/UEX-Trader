@@ -136,14 +136,18 @@ class API:
     async def fetch_commodities_by_id(self, id_commodity):
         params = {'id_commodity': id_commodity}
         commodities = await self._fetch_data("/commodities_prices", params=params)
-        return commodities.get("data", [])
+        selected_version = await self.config_manager.get_version_value()
+        return [commodity for commodity in commodities.get("data", [])
+                if commodity.get("game_version", '0.0') == selected_version]
 
     async def fetch_commodities_from_terminal(self, id_terminal, id_commodity=None):
         params = {'id_terminal': id_terminal}
         if id_commodity:
             params['id_commodity'] = id_commodity
         commodities = await self._fetch_data("/commodities_prices", params=params)
-        return commodities.get("data", [])
+        selected_version = await self.config_manager.get_version_value()
+        return [commodity for commodity in commodities.get("data", [])
+                if commodity.get("game_version", '0.0') == selected_version]
 
     async def fetch_planets(self, system_id=None, planet_id=None):
         params = {}
@@ -208,6 +212,8 @@ class API:
             'id_commodity': id_commodity
         }
         routes = await self._fetch_data("/commodities_routes", params=params)
+        # TODO - Use next() instead of this loop and filter routes with game_version_origin and game_version_destination
+        # selected_version = await self.config_manager.get_version_value()
         for route in routes.get("data", []):
             if route.get("distance", 1) is None:
                 return 1
