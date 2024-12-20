@@ -74,7 +74,7 @@ jobs:
       run: |
         echo "Cache was not loaded successfully"
         exit 1
-    - name: Activate venv
+    - name: Test Activate venv
       if: steps.cache-venv.outputs.cache-hit == 'true'
       run: |
         ${{ runner.os == 'Linux' && 'source .venv/bin/activate' || '.\.venv\Scripts\activate' }}
@@ -87,7 +87,14 @@ jobs:
         # stop the build if there are Python syntax errors or undefined names
         python -m flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=.venv,build,dist
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        python -m flake8 . --count --max-complexity=10 --max-line-length=127 --statistics --exclude=.venv,build,dist
+        python -m flake8 . --count --max-complexity=10 --max-line-length=127 --statistics --exclude=.venv,build,dist --ignore=N802,W503
+    - name: Lint with prospector
+      if: steps.cache-venv.outputs.cache-hit == 'true'
+      run: |
+        ${{ runner.os == 'Linux' && 'source .venv/bin/activate' || '.\.venv\Scripts\activate' }}
+        apt-get update && apt-get install -y jq
+        prospector --output-format json --zero-exit --path . | tee prospector_output.json
+        # [ $(jq '.summary.message_count' prospector_output.json) -eq 0 ]
     - uses: tlambert03/setup-qt-libs@v1
     - name: build "display"
       if: steps.cache-venv.outputs.cache-hit == 'true'
@@ -131,19 +138,30 @@ jobs:
       run: |
         echo "Cache was not loaded successfully"
         exit 1
-    - name: Activate venv
+    - name: Build with PyInstaller
       if: steps.cache-venv.outputs.cache-hit == 'true'
       run: |
         ${{ runner.os == 'Linux' && 'source .venv/bin/activate' || '.\.venv\Scripts\activate' }}
-    - name: PyInstaller Action
-      if: steps.cache-venv.outputs.cache-hit == 'true'
-      uses: Martin005/pyinstaller-action@v1.2.0
-      with:
-        python_ver: ${{ matrix.python-version }}
-        spec: 'main.py'
-        requirements: 'requirements.txt'
-        upload_exe_with_name: 'UEX-Trader'
-        options: --onedir, --name "UEX-Trader", --windowed, --icon ./resources/uextrader_icon_resized_idL_icon.ico, --add-data ./resources/UEXTrader_icon_resized.png:resources/UEXTrader_icon_resized.png
+        pyinstaller --onedir --name "UEX-Trader" --windowed --icon ./resources/uextrader_icon_resized_idL_icon.ico --add-data ./resources/UEXTrader_icon_resized.png:resources/UEXTrader_icon_resized.png --clean --strip main.py
+    - name: Sign Executable on Windows
+      if: matrix.os == 'windows-latest' && env.SIGN_EXECUTABLE == 'true'
+      run: |
+        echo "Downloading and installing Windows SDK..."
+        choco install windows-sdk-10.0 --version 10.0.19041.0 -y
+        echo "Windows SDK installed."
+        echo "Signing the executable..."
+        certutil -addstore "My" ${{ secrets.CERTIFICATE }}
+        # Sign the executable using the certificate
+        signtool sign /f ${{ secrets.CERTIFICATE }} /p ${{ secrets.PRIVATE_KEY }} /t http://timestamp.digicert.com dist/UEX-Trader/UEX-Trader.exe
+    - name: Sign Executable on Ubuntu
+      if: matrix.os == 'ubuntu-latest' && env.SIGN_EXECUTABLE == 'true'
+      run: |
+        echo "Downloading and installing osslsigncode..."
+        sudo apt-get update
+        sudo apt-get install -y osslsigncode
+        echo "osslsigncode installed."
+        echo "Signing the executable..."
+        osslsigncode sign -certs ${{ secrets.CERTIFICATE }} -key ${{ secrets.PRIVATE_KEY }} -n "UEX-Trader" -in dist/UEX-Trader/UEX-Trader -out dist/UEX-Trader/UEX-Trader
     - name: Upload Compiled Executables
       uses: actions/upload-artifact@v4.4.3
       with:
