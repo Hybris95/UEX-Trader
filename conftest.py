@@ -12,9 +12,14 @@ async def qapp():
     app.quit()
 
 
-@pytest_asyncio.fixture()
+@pytest_asyncio.fixture
 async def config_manager(trader):
     yield trader.config_manager
+
+
+@pytest_asyncio.fixture
+async def api(trader):
+    yield trader.api
 
 
 @pytest_asyncio.fixture
