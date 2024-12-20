@@ -143,6 +143,15 @@ class ConfigManager:
     def get_version(self):
         return self.config.get("SETTINGS", "version", fallback="live")
 
+    async def get_version_value(self):
+        available_versions = await self.api.fetch_versions()
+        version_data = self.get_version()
+        version_value = next([available_versions[available_version] for available_version in available_versions
+                              if version_data == available_version], None)
+        if not version_value:
+            raise ValueError("Unknown version : %s", version_value)
+        return version_value
+
     async def set_version(self, version):
         available_versions = await self.api.fetch_versions()
         if not any(version == available_version for available_version in available_versions):

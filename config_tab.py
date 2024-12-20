@@ -123,8 +123,8 @@ class ConfigTab(QWidget):
         self.version_input = QComboBox()
         versions = await self.api.fetch_versions()
         for version in versions:
-            self.version_input.addItem(version, versions[version])
-        self.version_input.setCurrentIndex(self.version_input.findText(self.config_manager.get_version()))
+            self.version_input.addItem(version + " - " + versions[version], version)
+        self.version_input.setCurrentIndex(self.version_input.findData(self.config_manager.get_version()))
         self.version_input.currentIndexChanged.connect(self.update_version)
 
     async def populate_main_layout(self):
@@ -175,7 +175,7 @@ class ConfigTab(QWidget):
         asyncio.ensure_future(self.main_widget.init_ui())
 
     def update_version(self):
-        new_version = self.version_input.currentText()
+        new_version = self.version_input.currentData()
         asyncio.ensure_future(self.config_manager.set_version(new_version))
 
     def update_is_production(self):
