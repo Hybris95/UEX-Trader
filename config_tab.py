@@ -13,6 +13,7 @@ from config_manager import ConfigManager
 from translation_manager import TranslationManager
 import asyncio
 from tools import translate
+from api import API
 
 
 class ConfigTab(QWidget):
@@ -25,12 +26,16 @@ class ConfigTab(QWidget):
         self.config_manager = None
         self.translation_manager = None
         self.main_vboxlayout = None
+        self.config_manager = None
+        self.translation_manager = None
+        self.api = None
 
     async def initialize(self):
         async with self._lock:
             if self.config_manager is None or self.translation_manager is None or self.main_vboxlayout is None:
                 self.config_manager = await ConfigManager.get_instance()
                 self.translation_manager = await TranslationManager.get_instance()
+                self.api = await API.get_instance(self.config_manager)
                 await self.init_ui()
                 self._initialized.set()
 
@@ -113,6 +118,15 @@ class ConfigTab(QWidget):
         self.language_input.setCurrentIndex(self.language_input.findData(self.config_manager.get_lang()))
         self.language_input.currentIndexChanged.connect(self.update_lang)
 
+    async def prep_version(self):
+        self.version_label = QLabel(await translate("config_version") + ":")
+        self.version_input = QComboBox()
+        versions = await self.api.fetch_versions()
+        for version in versions:
+            self.version_input.addItem(version, versions[version])
+        self.version_input.setCurrentIndex(self.version_input.findText(self.config_manager.get_version()))
+        self.version_input.currentIndexChanged.connect(self.update_version)
+
     async def populate_main_layout(self):
         self.main_vboxlayout.addLayout(self.api_key_vboxlayout)
         self.main_vboxlayout.addLayout(self.secret_key_vboxlayout)
@@ -122,6 +136,8 @@ class ConfigTab(QWidget):
         self.main_vboxlayout.addWidget(self.appearance_input)
         self.main_vboxlayout.addWidget(self.language_label)
         self.main_vboxlayout.addWidget(self.language_input)
+        self.main_vboxlayout.addWidget(self.version_label)
+        self.main_vboxlayout.addWidget(self.version_input)
 
     async def init_ui(self):
         self.main_vboxlayout = QVBoxLayout()
@@ -132,6 +148,7 @@ class ConfigTab(QWidget):
         await self.prep_appearance()
         self.update_appearance_mode()
         await self.prep_language()
+        await self.prep_version()
         await self.populate_main_layout()
         self.setLayout(self.main_vboxlayout)
 
@@ -156,6 +173,10 @@ class ConfigTab(QWidget):
         new_lang = self.language_input.currentData()
         self.config_manager.set_lang(new_lang)
         asyncio.ensure_future(self.main_widget.init_ui())
+
+    def update_version(self):
+        new_version = self.version_input.currentText()
+        asyncio.ensure_future(self.config_manager.set_version(new_version))
 
     def update_is_production(self):
         self.config_manager.set_is_production(self.is_production_checkbox.isChecked())

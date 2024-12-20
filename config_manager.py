@@ -4,6 +4,8 @@ import logging
 import base64
 import asyncio
 from logger_setup import setup_logger
+from api import API
+from translation_manager import TranslationManager
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +34,8 @@ class ConfigManager:
         if not hasattr(self, 'singleton'):  # Ensure __init__ is only called once
             self.config_file = config_file
             self.config = configparser.ConfigParser()
+            self.api = None
+            self.translation_manager = None
             self.load_config()
             self.set_debug(self.get_debug())
             self.singleton = True
@@ -40,6 +44,8 @@ class ConfigManager:
         async with self._lock:
             if not self._initialized.is_set():
                 # Initialize all async resources here
+                self.api = await API.get_instance(self)
+                self.translation_manager = await TranslationManager.get_instance()
                 self._initialized.set()
 
     async def ensure_initialized(self):
@@ -126,8 +132,22 @@ class ConfigManager:
         return self.config.get("SETTINGS", "language", fallback="en")
 
     def set_lang(self, lang):
-        # TODO - Check if lang is part of the current language list
+        available_langs = self.translation_manager.get_available_lang()
+        if not any(lang == available_lang for available_lang in available_langs):
+            raise ValueError("Unknown lang given")
         if "SETTINGS" not in self.config:
             self.config["SETTINGS"] = {}
         self.config["SETTINGS"]["language"] = lang
+        self.save_config()
+
+    def get_version(self):
+        return self.config.get("SETTINGS", "version", fallback="live")
+
+    async def set_version(self, version):
+        available_versions = await self.api.fetch_versions()
+        if not any(version == available_version for available_version in available_versions):
+            raise ValueError("Unknown version given")
+        if "SETTINGS" not in self.config:
+            self.config["SETTINGS"] = {}
+        self.config["SETTINGS"]["version"] = version
         self.save_config()
