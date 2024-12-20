@@ -1,5 +1,5 @@
 # gui.py
-from PyQt5.QtWidgets import QApplication, QTabWidget, QVBoxLayout, QWidget, QStyleFactory
+from PyQt5.QtWidgets import QApplication, QTabWidget, QVBoxLayout, QWidget, QStyleFactory, QMessageBox
 from PyQt5.QtGui import QIcon, QPalette, QColor
 from PyQt5.QtCore import Qt
 from config_tab import ConfigTab
@@ -10,39 +10,29 @@ from config_manager import ConfigManager
 from translation_manager import TranslationManager
 from api import API
 import asyncio
+from tools import translate
 
 
 class UexcorpTrader(QWidget):
     _lock = asyncio.Lock()
     _initialized = asyncio.Event()
 
-    def __init__(self, app, loop):
+    def __init__(self, app, loop, show_qmessagebox=True):
         super().__init__()
         self.app = app
         self.loop = loop
         self.config_manager = None
         self.translation_manager = None
         self.api = None
+        self.show_qmessagebox = show_qmessagebox
 
     async def initialize(self):
         async with self._lock:
             if self.config_manager is None or self.translation_manager is None or self.api is None:
-                if ConfigManager._instance is None:
-                    self.config_manager = ConfigManager()
-                    await self.config_manager.initialize()
-                else:
-                    self.config_manager = ConfigManager._instance
-                if TranslationManager._instance is None:
-                    self.translation_manager = TranslationManager()
-                    await self.translation_manager.initialize()
-                else:
-                    self.translation_manager = TranslationManager._instance
-                if API._instance is None:
-                    self.api = API(self.config_manager)
-                    await self.api.initialize()
-                else:
-                    self.api = API._instance
-                await self.initUI(self.config_manager.get_lang())
+                self.config_manager = await ConfigManager.get_instance()
+                self.translation_manager = await TranslationManager.get_instance()
+                self.api = await API.get_instance(self.config_manager)
+                await self.init_ui()
                 await self.apply_appearance_mode(self.config_manager.get_appearance_mode())
                 self._initialized.set()
 
@@ -55,8 +45,8 @@ class UexcorpTrader(QWidget):
         await self.ensure_initialized()
         return self
 
-    async def initUI(self, lang="en"):
-        self.setWindowTitle(self.translation_manager.get_translation("window_title", lang))
+    async def init_ui(self):
+        self.setWindowTitle(await translate("window_title"))
         self.setWindowIcon(QIcon("resources/UEXTrader_icon_resized.png"))
 
         if hasattr(self, "tabs") and hasattr(self, "main_layout"):
@@ -70,10 +60,10 @@ class UexcorpTrader(QWidget):
         await self.tradeRouteTab.initialize()
         self.bestTradeRouteTab = BestTradeRouteTab(self)
         await self.bestTradeRouteTab.initialize()
-        self.tabs.addTab(self.configTab, self.translation_manager.get_translation("config_tab", lang))
-        self.tabs.addTab(self.tradeTab, self.translation_manager.get_translation("trade_tab", lang))
-        self.tabs.addTab(self.tradeRouteTab, self.translation_manager.get_translation("trade_route_tab", lang))
-        self.tabs.addTab(self.bestTradeRouteTab, self.translation_manager.get_translation("best_trade_route_tab", lang))
+        self.tabs.addTab(self.configTab, await translate("config_tab"))
+        self.tabs.addTab(self.tradeTab, await translate("trade_tab"))
+        self.tabs.addTab(self.tradeRouteTab, await translate("trade_route_tab"))
+        self.tabs.addTab(self.bestTradeRouteTab, await translate("best_trade_route_tab"))
 
         if not hasattr(self, "main_layout"):
             self.main_layout = QVBoxLayout()
@@ -132,3 +122,19 @@ class UexcorpTrader(QWidget):
         self.tradeTab.set_gui_enabled(enabled)
         self.tradeRouteTab.set_gui_enabled(enabled)
         self.bestTradeRouteTab.set_gui_enabled(enabled)
+
+    def show_messagebox(self, title, text, criticity=QMessageBox.Icon.Information):
+        if self.show_qmessagebox:
+            match criticity:
+                case QMessageBox.Icon.Critical:
+                    QMessageBox.critical(self, title, text)
+                    return
+                case QMessageBox.Icon.Warning:
+                    QMessageBox.warning(self, title, text)
+                    return
+                case QMessageBox.Icon.Question:
+                    QMessageBox.question(self, title, text)
+                    return
+                case _:
+                    QMessageBox.information(self, title, text)
+                    return

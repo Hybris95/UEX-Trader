@@ -12,17 +12,13 @@ async def qapp():
     app.quit()
 
 
-@pytest_asyncio.fixture(scope="session")
-async def config_manager():
-    from config_manager import ConfigManager
-    config_manager = ConfigManager()
-    await config_manager.initialize()  # Ensure this is asynchronous
-    yield config_manager
+@pytest_asyncio.fixture()
+async def config_manager(trader):
+    yield trader.config_manager
 
 
 @pytest_asyncio.fixture
-async def trader(qapp, config_manager):
-    trader = UexcorpTrader(qapp, asyncio.get_event_loop())
+async def trader(qapp):
+    trader = UexcorpTrader(qapp, asyncio.get_event_loop(), show_qmessagebox=False)
     await trader.initialize()
     yield trader
-    await trader.cleanup()
