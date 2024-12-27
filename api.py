@@ -62,8 +62,8 @@ class API:
     async def get_api_base_url(self):
         await self.ensure_initialized()
         if self.config_manager.get_is_production():
-            return "https://uexcorp.space/api/2.0"
-        return "https://uexcorp.space/api/2.0"
+            return "https://api.uexcorp.space/2.0"
+        return "https://api.uexcorp.space/2.0"
 
     def get_logger(self):
         return logging.getLogger(__name__)
