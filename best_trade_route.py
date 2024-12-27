@@ -579,8 +579,12 @@ class BestTradeRouteTab(QWidget):
             return False
         if buy_commodity["id"] == sell_commodity["id"]:
             return False
-        buy_update = buy_commodity["date_modified"]
-        sell_update = sell_commodity["date_modified"]
+        buy_update = buy_commodity.get("date_modified", 0)
+        if not buy_update:
+            buy_update = buy_commodity.get("date_added", 0)
+        sell_update = sell_commodity.get("date_modified", 0)
+        if not sell_update:
+            sell_update = sell_commodity.get("date_added", 0)
         buy_update_days = days_difference_from_now(buy_update)
         sell_update_days = days_difference_from_now(sell_update)
 
