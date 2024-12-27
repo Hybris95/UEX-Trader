@@ -14,7 +14,7 @@ class TranslationManager:
         return cls._instance
 
     @staticmethod
-    async def get_instance(translation_file="translations.ini"):
+    async def get_instance(translation_file="_internal/translations.ini"):
         manager = None
         if TranslationManager._instance is None:
             manager = TranslationManager(translation_file)
@@ -23,7 +23,7 @@ class TranslationManager:
             manager = TranslationManager._instance
         return manager
 
-    def __init__(self, translation_file="translations.ini"):
+    def __init__(self, translation_file="_internal/translations.ini"):
         if not hasattr(self, 'singleton'):  # Ensure __init__ is only called once
             self.translation_file = translation_file
             self.translation_config = configparser.ConfigParser()

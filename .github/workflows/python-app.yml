@@ -142,7 +142,7 @@ jobs:
       if: steps.cache-venv.outputs.cache-hit == 'true'
       run: |
         ${{ runner.os == 'Linux' && 'source .venv/bin/activate' || '.\.venv\Scripts\activate' }}
-        pyinstaller --onedir --name "UEX-Trader" --windowed --icon ./resources/uextrader_icon_resized_idL_icon.ico --add-data ./resources/UEXTrader_icon_resized.png:resources/UEXTrader_icon_resized.png --clean --strip main.py
+        pyinstaller --onedir --name "UEX-Trader" --windowed --icon ./_internal/resources/uextrader_icon_resized_idL_icon.ico --add-data ./_internal/resources/UEXTrader_icon_resized.png:resources --add-data ./_internal/translations.ini:. --clean --noupx main.py
     - name: Sign Executable on Windows
       if: matrix.os == 'windows-latest' && env.SIGN_EXECUTABLE == 'true'
       run: |
