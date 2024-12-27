@@ -417,6 +417,8 @@ class TradeRouteTab(QWidget):
             return None
         buy_update = departure_commodity["date_modified"]
         sell_update = arrival_commodity["date_modified"]
+        if not sell_update:
+            sell_update = arrival_commodity["date_added"]
         sell_update_days = days_difference_from_now(sell_update)
         if (sell_update_days > max_outdated_days):
             return None

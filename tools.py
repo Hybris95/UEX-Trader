@@ -11,7 +11,7 @@ def create_async_callback(async_func, *args, **kwargs):
     return wrapper
 
 
-def days_difference_from_now(timestamp):
+def days_difference_from_now(timestamp=0):
     date = datetime.fromtimestamp(timestamp, tz=timezone.utc)
     now = datetime.now(timezone.utc)
     difference = now - date
