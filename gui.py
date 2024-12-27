@@ -47,7 +47,7 @@ class UexcorpTrader(QWidget):
 
     async def init_ui(self):
         self.setWindowTitle(await translate("window_title"))
-        self.setWindowIcon(QIcon("resources/UEXTrader_icon_resized.png"))
+        self.setWindowIcon(QIcon("_internal/resources/UEXTrader_icon_resized.png"))
 
         if hasattr(self, "tabs") and hasattr(self, "main_layout"):
             self.main_layout.removeWidget(self.tabs)
