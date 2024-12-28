@@ -429,14 +429,14 @@ class TradeRouteTab(QWidget):
             return None
         profit_margin = unit_margin / buy_price
         arrival_id_star_system = arrival_commodity.get("id_star_system")
-        destination = next(
+        destination_system = str(next(
             (system["name"] for system in (await self.api.fetch_system(arrival_id_star_system))),
-            translate("unknown_system"))
-        + " - " + next(
+            translate("unknown_system")))
+        destination_planet = str(next(
             (planet["name"] for planet in (await self.api.fetch_planets(arrival_id_star_system,
                                                                         arrival_commodity.get("id_planet")))),
-            translate("unknown_planet"))
-        + " / " + arrival_commodity.get("terminal_name")
+            translate("unknown_planet")))
+        destination = destination_system + ' - ' + destination_planet + ' / ' + arrival_commodity.get("terminal_name")
         distance = await self.api.fetch_distance(departure_commodity["id_terminal"],
                                                  arrival_commodity["id_terminal"],
                                                  departure_commodity["id_commodity"])
