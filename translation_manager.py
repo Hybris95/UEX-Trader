@@ -28,10 +28,13 @@ class TranslationManager:
             self.translation_file = translation_file
             self.translation_config = configparser.ConfigParser()
             self.load_translations()
+            # List of ISO 639 (Set 1) Language Codes
             self.available_langs = [
                 "en",
                 "fr",
-                "ru"
+                "ru",
+                "de",
+                "ja"
             ]
             self.singleton = True
 

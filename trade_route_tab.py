@@ -355,6 +355,9 @@ class TradeRouteTab(QWidget):
         action_progress = 0
         for departure_commodity in departure_commodities:
             self.main_progress_bar.setValue(action_progress)
+            self.main_progress_bar.setFormat(await translate("main_progress_step")
+                                             + f" {action_progress}/{universe}: "
+                                             + await translate("main_progress_fetching_commodities"))
             action_progress += 1
             if departure_commodity.get("price_buy") == 0:
                 continue
@@ -376,6 +379,9 @@ class TradeRouteTab(QWidget):
         action_progress = 0
         for arrival_commodity in arrival_commodities:
             self.progress_bar.setValue(action_progress)
+            self.progress_bar.setFormat(await translate("progress_step")
+                                        + f" {action_progress}/{universe}: "
+                                        + await translate("progress_calculating_route_by_commodity"))
             action_progress += 1
             if arrival_commodity.get("is_available") == 0 or arrival_commodity.get("id_terminal") == departure_terminal_id:
                 continue
@@ -438,8 +444,7 @@ class TradeRouteTab(QWidget):
             translate("unknown_planet")))
         destination = destination_system + ' - ' + destination_planet + ' / ' + arrival_commodity.get("terminal_name")
         distance = await self.api.fetch_distance(departure_commodity["id_terminal"],
-                                                 arrival_commodity["id_terminal"],
-                                                 departure_commodity["id_commodity"])
+                                                 arrival_commodity["id_terminal"])
         total_margin_by_distance = total_margin / distance
         unit_margin_by_distance = unit_margin / distance
         return {
