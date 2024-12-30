@@ -5,6 +5,7 @@ import json
 from cache_manager import CacheManager
 import asyncio
 import traceback
+import hashlib
 
 
 class API:
@@ -70,7 +71,8 @@ class API:
 
     async def _fetch_data(self, endpoint, params=None):
         await self.ensure_initialized()
-        cache_key = f"{endpoint}_{params}"
+        hashed_params = hashlib.md5(str(params).encode('utf-8')).hexdigest()
+        cache_key = f"{endpoint}_{hashed_params}"
         cached_data = self.cache.get(cache_key)
         logger = self.get_logger()
         if cached_data:
