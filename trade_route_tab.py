@@ -355,6 +355,9 @@ class TradeRouteTab(QWidget):
         action_progress = 0
         for departure_commodity in departure_commodities:
             self.main_progress_bar.setValue(action_progress)
+            self.main_progress_bar.setFormat(await translate("main_progress_step")
+                                             + f" {action_progress}/{universe}: "
+                                             + await translate("main_progress_fetching_commodities"))
             action_progress += 1
             if departure_commodity.get("price_buy") == 0:
                 continue
@@ -376,6 +379,9 @@ class TradeRouteTab(QWidget):
         action_progress = 0
         for arrival_commodity in arrival_commodities:
             self.progress_bar.setValue(action_progress)
+            self.progress_bar.setFormat(await translate("progress_step")
+                                        + f" {action_progress}/{universe}: "
+                                        + await translate("progress_calculating_route_by_commodity"))
             action_progress += 1
             if arrival_commodity.get("is_available") == 0 or arrival_commodity.get("id_terminal") == departure_terminal_id:
                 continue
@@ -417,6 +423,8 @@ class TradeRouteTab(QWidget):
             return None
         buy_update = departure_commodity["date_modified"]
         sell_update = arrival_commodity["date_modified"]
+        if not sell_update:
+            sell_update = arrival_commodity["date_added"]
         sell_update_days = days_difference_from_now(sell_update)
         if (sell_update_days > max_outdated_days):
             return None
@@ -427,17 +435,16 @@ class TradeRouteTab(QWidget):
             return None
         profit_margin = unit_margin / buy_price
         arrival_id_star_system = arrival_commodity.get("id_star_system")
-        destination = next(
+        destination_system = str(next(
             (system["name"] for system in (await self.api.fetch_system(arrival_id_star_system))),
-            translate("unknown_system"))
-        + " - " + next(
+            translate("unknown_system")))
+        destination_planet = str(next(
             (planet["name"] for planet in (await self.api.fetch_planets(arrival_id_star_system,
                                                                         arrival_commodity.get("id_planet")))),
-            translate("unknown_planet"))
-        + " / " + arrival_commodity.get("terminal_name")
+            translate("unknown_planet")))
+        destination = destination_system + ' - ' + destination_planet + ' / ' + arrival_commodity.get("terminal_name")
         distance = await self.api.fetch_distance(departure_commodity["id_terminal"],
-                                                 arrival_commodity["id_terminal"],
-                                                 departure_commodity["id_commodity"])
+                                                 arrival_commodity["id_terminal"])
         total_margin_by_distance = total_margin / distance
         unit_margin_by_distance = unit_margin / distance
         return {

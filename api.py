@@ -5,6 +5,7 @@ import json
 from cache_manager import CacheManager
 import asyncio
 import traceback
+import hashlib
 
 
 class API:
@@ -70,7 +71,8 @@ class API:
 
     async def _fetch_data(self, endpoint, params=None):
         await self.ensure_initialized()
-        cache_key = f"{endpoint}_{params}"
+        hashed_params = hashlib.md5(str(params).encode('utf-8')).hexdigest()
+        cache_key = f"{endpoint}_{hashed_params}"
         cached_data = self.cache.get(cache_key)
         logger = self.get_logger()
         if cached_data:
@@ -205,11 +207,10 @@ class API:
         # TODO - Check if data is formed properly considering user_trades_add endpoint
         return await self._post_data("/user_trades_add/", data)
 
-    async def fetch_distance(self, id_terminal_origin, id_terminal_destination, id_commodity):
+    async def fetch_distance(self, id_terminal_origin, id_terminal_destination):
         params = {
             'id_terminal_origin': id_terminal_origin,
-            'id_terminal_destination': id_terminal_destination,
-            'id_commodity': id_commodity
+            'id_terminal_destination': id_terminal_destination
         }
         routes = await self._fetch_data("/commodities_routes", params=params)
         # TODO - Use next() instead of this loop and filter routes with game_version_origin and game_version_destination
