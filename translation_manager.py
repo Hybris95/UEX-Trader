@@ -31,7 +31,8 @@ class TranslationManager:
             self.available_langs = [
                 "en",
                 "fr",
-                "ru"
+                "ru",
+                "de"
             ]
             self.singleton = True
 
