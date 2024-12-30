@@ -205,11 +205,10 @@ class API:
         # TODO - Check if data is formed properly considering user_trades_add endpoint
         return await self._post_data("/user_trades_add/", data)
 
-    async def fetch_distance(self, id_terminal_origin, id_terminal_destination, id_commodity):
+    async def fetch_distance(self, id_terminal_origin, id_terminal_destination):
         params = {
             'id_terminal_origin': id_terminal_origin,
-            'id_terminal_destination': id_terminal_destination,
-            'id_commodity': id_commodity
+            'id_terminal_destination': id_terminal_destination
         }
         routes = await self._fetch_data("/commodities_routes", params=params)
         # TODO - Use next() instead of this loop and filter routes with game_version_origin and game_version_destination
