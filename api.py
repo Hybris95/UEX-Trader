@@ -19,19 +19,19 @@ class API:
         return cls._instance
 
     @staticmethod
-    async def get_instance(config_manager, cache_ttl=1800):
+    async def get_instance(config_manager):
         api = None
         if API._instance is None:
-            api = API(config_manager, cache_ttl)
+            api = API(config_manager)
             await api.initialize()
         else:
             api = API._instance
         return api
 
-    def __init__(self, config_manager, cache_ttl=1800):
+    def __init__(self, config_manager):
         if not hasattr(self, 'singleton'):  # Ensure __init__ is only called once
             self.config_manager = config_manager
-            self.cache = CacheManager(ttl=cache_ttl)
+            self.cache = CacheManager()
             self.session = None
             self.singleton = True
 
@@ -73,7 +73,7 @@ class API:
         await self.ensure_initialized()
         hashed_params = hashlib.md5(str(params).encode('utf-8')).hexdigest()
         cache_key = f"{endpoint}_{hashed_params}"
-        cached_data = self.cache.get(cache_key)
+        cached_data = self.cache.get(cache_key, int(self.config_manager.get_ttl()))
         logger = self.get_logger()
         if cached_data:
             logger.debug(f"Cache hit for {cache_key}")

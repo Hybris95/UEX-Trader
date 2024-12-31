@@ -160,3 +160,20 @@ class ConfigManager:
             self.config["SETTINGS"] = {}
         self.config["SETTINGS"]["version"] = version
         self.save_config()
+
+    def get_ttl(self):
+        return self.config.get("SETTINGS", "ttl", fallback="1800")
+    
+    def set_ttl(self, ttl):
+        if not isinstance(ttl, str) or not ttl.isdigit():
+            raise ValueError("TTL must be a string containing only digits")
+        try:
+            int_ttl = int(ttl)
+            if int_ttl < 0:
+                raise ValueError("TTL must be a non-negative integer")
+            if "SETTINGS" not in self.config:
+                self.config["SETTINGS"] = {}
+            self.config["SETTINGS"]["ttl"] = ttl
+            self.save_config()
+        except ValueError:
+            raise ValueError("TTL must be a valid integer string")
