@@ -163,7 +163,7 @@ class ConfigManager:
 
     def get_ttl(self):
         return self.config.get("SETTINGS", "ttl", fallback="1800")
-    
+
     def set_ttl(self, ttl):
         if not isinstance(ttl, str) or not ttl.isdigit():
             raise ValueError("TTL must be a string containing only digits")
