@@ -29,3 +29,4 @@ async def test_tabs_exist(trader):
     assert tabs.tabText(1) == "Trade Commodity"
     assert tabs.tabText(2) == "Find Trade Route"
     assert tabs.tabText(3) == "Best Trade Routes"
+    assert tabs.tabText(4) == "Submit Terminal"

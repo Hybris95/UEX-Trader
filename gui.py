@@ -7,6 +7,7 @@ from config_tab import ConfigTab
 from trade_tab import TradeTab
 from trade_route_tab import TradeRouteTab
 from best_trade_route import BestTradeRouteTab
+from submit_tab import SubmitTab
 from config_manager import ConfigManager
 from translation_manager import TranslationManager
 from api import API
@@ -102,10 +103,13 @@ class UexcorpTrader(QWidget):
         await self.tradeRouteTab.initialize()
         self.bestTradeRouteTab = BestTradeRouteTab(self)
         await self.bestTradeRouteTab.initialize()
+        self.submitTab = SubmitTab(self)
+        await self.submitTab.initialize()
         self.tabs.addTab(self.configTab, await translate("config_tab"))
         self.tabs.addTab(self.tradeTab, await translate("trade_tab"))
         self.tabs.addTab(self.tradeRouteTab, await translate("trade_route_tab"))
         self.tabs.addTab(self.bestTradeRouteTab, await translate("best_trade_route_tab"))
+        self.tabs.addTab(self.submitTab, await translate("submit_tab"))
 
         if not hasattr(self, "main_layout"):
             self.main_layout = QVBoxLayout()
