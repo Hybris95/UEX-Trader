@@ -90,6 +90,9 @@ python main.py
 - **Debug Mode:** Toggle between `True` and `False` to enable or disable debug logging
   (only useful for Developers).
 - **Appearance Mode:** Select between `Light` and `Dark` modes for the application's appearance.
+- **Language:** Select the Preferred Language between the validated languages (currently English, French, Russian, German and Japanese)
+- **Version:** Select the Game Version that will be used to filter the commodities values
+- **Cache TTL:** Enter the number of seconds you want to cache to be held (by default: 30min)
 
 ## Use Cases
 
