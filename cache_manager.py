@@ -3,15 +3,14 @@ import time
 
 
 class CacheManager:
-    def __init__(self, ttl=300):
-        self.ttl = ttl  # Time-to-live for cache in seconds
+    def __init__(self):
         self.cache = {}
 
-    def get(self, key):
+    def get(self, key, ttl):
         data = None
         if key in self.cache:
             entry = self.cache[key]
-            if ((time.time() - entry['timestamp']) < self.ttl):
+            if ((time.time() - entry['timestamp']) < ttl):
                 data = entry['data']
             else:
                 del self.cache[key]
