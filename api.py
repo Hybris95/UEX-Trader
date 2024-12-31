@@ -8,6 +8,8 @@ import traceback
 import hashlib
 from itertools import groupby
 from operator import itemgetter
+from typing import List
+from commodity import Commodity
 
 
 class API:
@@ -349,3 +351,32 @@ class API:
             else:
                 return route["distance"]
         return 1
+
+    async def commodity_submit(self, id_commodity_terminal: int, commodities: List[Commodity], details: str):
+        # TODO - Check if id_commodity_terminal exists as a commodity terminal
+
+        if not isinstance(commodities, list):
+            raise TypeError("commodities must be a list")
+
+        logger = self.get_logger()
+        data = {
+            "id_terminal": id_commodity_terminal,
+            "type": "commodity",
+            "prices": [],
+            "details": details,
+            "game_version": await self.config_manager.get_version_value()
+        }
+        for commodity in commodities:
+            if not isinstance(commodity, Commodity):
+                raise TypeError("All elements in commodities must be instances of Commodity")
+            price = {
+                "id_commodity": commodity.id,
+                commodity.get_price_property(): commodity.price,
+                "is_missing": commodity.missing,
+                commodity.get_scu_property(): commodity.scu,
+                commodity.get_status_property(): commodity.status
+            }
+            data['prices'].append(price)
+
+        logger.debug(f"Submitting commodities to terminal {id_commodity_terminal}")
+        return await self._post_data("/data_submit/", data)
