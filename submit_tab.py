@@ -1,13 +1,15 @@
 # submit_tab.py
 import asyncio
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QMessageBox
-from PyQt5.QtWidgets import QLabel, QLineEdit, QComboBox, QPushButton
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QCheckBox
+from PyQt5.QtWidgets import QLabel, QLineEdit, QComboBox, QPushButton, QTableWidget, QTableWidgetItem
+from PyQt5.QtCore import Qt
 import traceback
 import logging
 from api import API
 from config_manager import ConfigManager
 from translation_manager import TranslationManager
 from tools import translate
+from commodity import Commodity
 
 
 class SubmitTab(QWidget):
@@ -23,6 +25,7 @@ class SubmitTab(QWidget):
         self._current_terminal_commodities = []
         self._unfiltered_terminals = []
         asyncio.ensure_future(self.load_systems())
+        asyncio.ensure_future(self.load_commodities())
 
     async def initialize(self):
         async with self._lock:
@@ -43,7 +46,7 @@ class SubmitTab(QWidget):
         await self.prep_system()
         await self.prep_planet()
         await self.prep_terminal()
-        await self.prep_table()
+        await self.prep_commodity_table()
         await self.prep_add_commodity()
         self.add_widgets()
         self.setLayout(self.main_layout)
@@ -66,11 +69,35 @@ class SubmitTab(QWidget):
         self.terminal_combo = QComboBox()
         self.terminal_combo.currentIndexChanged.connect(lambda: asyncio.ensure_future(self.update_commodities()))
 
-    async def prep_table(self):
-        raise NotImplementedError()  # TODO - Prepare entry table
+    async def prep_commodity_table(self):
+        self.commodity_table = QTableWidget()
+        self.columns = [
+            "id_commodity",
+            await translate("trade_columns_commodity"),
+            "type",
+            "price",
+            "scu",
+            "status",
+            "missing"
+        ]
+        self.commodity_table.setColumnCount(len(self.columns))
+        self.commodity_table.setColumnHidden(0, True)
+        self.commodity_table.setHorizontalHeaderLabels(self.columns)
 
     async def prep_add_commodity(self):
-        raise NotImplementedError()  # TODO - Prepare the button to add a new commodity
+        self.search_new_commodity_hboxlayout = QHBoxLayout()
+        self.search_new_commodity_filter_layout = QVBoxLayout()
+        self.search_new_commodity_label = QLabel(await translate("trade_columns_commodity"))
+        self.search_new_commodity_filter = QLineEdit()
+        self.search_new_commodity_filter.setPlaceholderText(await translate("filter_commodities"))
+        self.search_new_commodity_filter.textChanged.connect(self.filter_commodities)
+        self.search_new_commodity_combo = QComboBox()
+        self.search_new_commodity_button = QPushButton()
+        self.search_new_commodity_filter_layout.addWidget(self.search_new_commodity_label)
+        self.search_new_commodity_filter_layout.addWidget(self.search_new_commodity_filter)
+        self.search_new_commodity_hboxlayout.addLayout(self.search_new_commodity_filter_layout)
+        self.search_new_commodity_hboxlayout.addWidget(self.search_new_commodity_combo)
+        self.search_new_commodity_hboxlayout.addWidget(self.search_new_commodity_button)
 
     def add_widgets(self):
         self.main_layout.addWidget(self.system_label)
@@ -80,8 +107,20 @@ class SubmitTab(QWidget):
         self.main_layout.addWidget(self.terminal_label)
         self.main_layout.addWidget(self.terminal_filter_input)
         self.main_layout.addWidget(self.terminal_combo)
-        raise NotImplementedError()  # TODO - Add entry table
-        raise NotImplementedError()  # TODO - Add the button to add a new commodity
+        self.main_layout.addWidget(self.commodity_table)
+        self.main_layout.addLayout(self.search_new_commodity_hboxlayout)
+
+    async def load_commodities(self):
+        try:
+            await self.ensure_initialized()
+            self._all_commodities = await self.api.fetch_all_commodities()
+        except Exception as e:
+            logging.error("Failed to load commodities: %s", e)
+            if self.config_manager.get_debug():
+                logging.debug(traceback.format_exc())
+            self.main_widget.show_messagebox(await translate("error_error"),
+                                             await translate("error_failed_to_load_commodities") + ": " + str(e),
+                                             QMessageBox.Icon.Critical)
 
     async def load_systems(self):
         try:
@@ -161,18 +200,47 @@ class SubmitTab(QWidget):
             if index != -1:
                 self.terminal_combo.setCurrentIndex(index)
 
+    def add_commodity(self, row: 'int', commodity: 'Commodity', existing=True):
+        item_id = QTableWidgetItem(commodity.id)
+        item_name = QTableWidgetItem(commodity.name)
+        item_type = QComboBox()
+        if existing:
+            item_type.setDisabled(True)
+        for type in Commodity.Type:
+            item_type.addItem(type.name, type.value)
+        item_type.setCurrentIndex(item_type.findData(commodity.type.value))
+        item_price = QTableWidgetItem(str(commodity.price))
+        # TODO - Make sure only floats are written in here
+        item_scu = QTableWidgetItem(str(commodity.scu))
+        # TODO - Make sure only integers are written in here
+        item_status = QComboBox()
+        for status in Commodity.Status:
+            item_status.addItem(Commodity.Status.get_string(status.value), status.value)
+        item_status.setCurrentIndex(item_status.findData(commodity.status.value))
+        item_missing = QCheckBox()
+        if not existing:
+            item_missing.setDisabled(True)
+        self.commodity_table.setItem(row, 0, item_id)
+        self.commodity_table.setItem(row, 1, item_name)
+        self.commodity_table.setCellWidget(row, 2, item_type)
+        self.commodity_table.setItem(row, 3, item_price)
+        self.commodity_table.setItem(row, 4, item_scu)
+        self.commodity_table.setCellWidget(row, 5, item_status)
+        self.commodity_table.setCellWidget(row, 6, item_missing)
+        # TODO - Add an action to remove the row for any "not existing" commodity added
+
     async def update_commodities(self):
         await self.ensure_initialized()
-        raise NotImplementedError()  # TODO - Erase current list of commodities shown in the table
+        self.commodity_table.clear()
         terminal_id = self.terminal_combo.currentData()
         if not terminal_id:
             return
         try:
             self._current_terminal_commodities = await self.api.fetch_commodities_from_terminal(terminal_id)
-            for commodity in self._current_terminal_commodities:
-                raise NotImplementedError()  # TODO - Transform each commodity into a Commodity object
-                raise NotImplementedError()  # TODO - Sort commodities by "type"
-                raise NotImplementedError()  # TODO - Add each commodities to the table
+            for i, commodity in enumerate(self._current_terminal_commodities):
+                self.commodity_table.insertRow(i)
+                commodity_obj = Commodity.transform_commodity_price(commodity)
+                self.add_commodity(i, commodity_obj)
             logging.info("Commodities loaded successfully for terminal ID : %s", terminal_id)
         except Exception as e:
             logging.error("Failed to load commodities: %s", e)
@@ -181,6 +249,15 @@ class SubmitTab(QWidget):
             self.main_widget.show_messagebox(await translate("error_error"),
                                              await translate("error_failed_to_load_commodities") + ": " + str(e),
                                              QMessageBox.Icon.Critical)
+        finally:
+            self.filter_commodities()
+
+    def filter_commodities(self):
+        filter_text = self.search_new_commodity_filter.text().lower()
+        self.search_new_commodity_combo.clear()
+        for commodity in self._all_commodities:
+            if filter_text in commodity["name"].lower():
+                self.search_new_commodity_combo.addItem(commodity["name"], commodity["id"])
 
     def ask_submit(self):
         raise NotImplementedError()  # TODO - Get data to submit from the table and store as temporary list
