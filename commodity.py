@@ -5,13 +5,14 @@ from enum import Enum
 class Commodity:
     def __init__(self,
                  id: 'int',
+                 name: 'str',
                  type: 'Commodity.Type',
                  price: 'float',
                  scu: 'int',
                  missing: bool,
                  status: 'Commodity.Status'):
         self.id = id
-        self.name = "Unknown Commodity"  # TODO - Get Commodity Name from its ID (this also makes sure the Commodity exists)
+        self.name = name
         self.type = type
         self.price = price
         self.scu = scu
@@ -36,11 +37,26 @@ class Commodity:
         else:
             return "status_sell"
 
+    @classmethod
+    def transform_commodity_price(cls, commodity):
+        type = Commodity.Type.BUY if float(commodity["price_buy"]) > 0 else Commodity.Type.SELL
+        price = float(commodity["price_buy"])
+        scu = int(commodity["scu_buy"])
+        status = None
+        if type == Commodity.Type.SELL:
+            price = float(commodity["price_sell"])
+            scu = int(commodity["scu_sell"])
+            status = Commodity.Status.from_value(int(commodity["status_sell"]))
+        else:
+            status = Commodity.Status.from_value(int(commodity["status_buy"]))
+        return Commodity(int(commodity["id"]), commodity["commodity_name"], type, price, scu, False, status)
+
     class Type(Enum):
         BUY = 1
         SELL = 2
 
     class Status(Enum):
+        UNKNOWN = 0
         OUT_OF_STOCK = 1
         VERY_LOW = 2
         LOW = 3
@@ -51,22 +67,22 @@ class Commodity:
 
         @classmethod
         def get_string(cls, value):
-            if value == cls.OUT_OF_STOCK:
+            if value == cls.OUT_OF_STOCK.value:
                 return "Out Stock"
-            elif value == cls.VERY_LOW:
+            elif value == cls.VERY_LOW.value:
                 return "Very Low"
-            elif value == cls.LOW:
+            elif value == cls.LOW.value:
                 return "Low"
-            elif value == cls.MEDIUM:
+            elif value == cls.MEDIUM.value:
                 return "Medium"
-            elif value == cls.HIGH:
+            elif value == cls.HIGH.value:
                 return "High"
-            elif value == cls.VERY_HIGH:
+            elif value == cls.VERY_HIGH.value:
                 return "Very High"
-            elif value == cls.MAXIMUM:
+            elif value == cls.MAXIMUM.value:
                 return "Maximum"
             else:
-                return "Unknown value"
+                return "Unknown"
 
         @classmethod
         def from_value(cls, value):

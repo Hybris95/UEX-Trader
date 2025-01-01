@@ -137,6 +137,11 @@ class API:
                 logging.debug(traceback.format_exc())
             raise  # Re-raise the exception to be handled by the calling function
 
+    async def fetch_all_commodities(self):
+        commodities = await self._fetch_data("/commodities")
+        return [commodity for commodity in commodities.get("data", [])
+                if commodity.get("is_available", 0) == 1]
+
     async def fetch_commodities_by_id(self, id_commodity):
         params = {'id_commodity': id_commodity}
         commodities = await self._fetch_data("/commodities_prices", params=params)
