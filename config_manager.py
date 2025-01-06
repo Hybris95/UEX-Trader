@@ -177,3 +177,6 @@ class ConfigManager:
             self.save_config()
         except ValueError:
             raise ValueError("TTL must be a valid integer string")
+
+    def clear_cache(self):
+        self.api.cache.clear()
