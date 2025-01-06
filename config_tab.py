@@ -6,7 +6,8 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QPushButton,
     QComboBox,
-    QCheckBox
+    QCheckBox,
+    QMessageBox
 )
 from PyQt5.QtCore import Qt
 from config_manager import ConfigManager
@@ -127,6 +128,14 @@ class ConfigTab(QWidget):
         self.version_input.setCurrentIndex(self.version_input.findData(self.config_manager.get_version()))
         self.version_input.currentIndexChanged.connect(self.update_version)
 
+    async def prep_cache_ttl(self):
+        self.cache_ttl_vboxlayout = QVBoxLayout()
+        self.cache_ttl_label = QLabel(await translate("config_cache_ttl") + ":")
+        self.cache_ttl_input = QLineEdit(self.config_manager.get_ttl())
+        self.cache_ttl_input.editingFinished.connect(lambda: asyncio.create_task(self.update_cache_ttl()))
+        self.cache_ttl_vboxlayout.addWidget(self.cache_ttl_label)
+        self.cache_ttl_vboxlayout.addWidget(self.cache_ttl_input)
+
     async def populate_main_layout(self):
         self.main_vboxlayout.addLayout(self.api_key_vboxlayout)
         self.main_vboxlayout.addLayout(self.secret_key_vboxlayout)
@@ -138,6 +147,7 @@ class ConfigTab(QWidget):
         self.main_vboxlayout.addWidget(self.language_input)
         self.main_vboxlayout.addWidget(self.version_label)
         self.main_vboxlayout.addWidget(self.version_input)
+        self.main_vboxlayout.addLayout(self.cache_ttl_vboxlayout)
 
     async def init_ui(self):
         self.main_vboxlayout = QVBoxLayout()
@@ -149,6 +159,7 @@ class ConfigTab(QWidget):
         self.update_appearance_mode()
         await self.prep_language()
         await self.prep_version()
+        await self.prep_cache_ttl()
         await self.populate_main_layout()
         self.setLayout(self.main_vboxlayout)
 
@@ -189,6 +200,15 @@ class ConfigTab(QWidget):
 
     def update_secret_key(self):
         self.config_manager.set_secret_key(self.secret_key_input.text())
+
+    async def update_cache_ttl(self):
+        try:
+            self.config_manager.set_ttl(self.cache_ttl_input.text())
+        except ValueError as e:
+            self.main_widget.show_messagebox(await translate("error_input_error"), str(e), QMessageBox.Icon.Warning)
+            self.cache_ttl_input.blockSignals(True)
+            self.cache_ttl_input.setText(self.config_manager.get_ttl())
+            self.cache_ttl_input.blockSignals(False)
 
     def set_gui_enabled(self, enabled):
         for lineedit in self.findChildren(QLineEdit):
