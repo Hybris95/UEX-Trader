@@ -143,7 +143,7 @@ class ConfigTab(QWidget):
         # self.clear_cache_button.setFixedSize(30, 30)  # Adjust size as needed
         self.clear_cache_button.pressed.connect(self.clear_cache)
         self.clear_cache_button.released.connect(self.clear_cache)
-        
+
         self.cache_ttl_hbox.addWidget(self.cache_ttl_label)
         self.cache_ttl_hbox.addWidget(self.cache_ttl_input)
         self.cache_ttl_vboxlayout.addWidget(self.cache_options_label)

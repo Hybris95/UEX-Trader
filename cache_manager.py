@@ -5,8 +5,9 @@ import os
 import sqlite3
 import time
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from platformdirs import user_config_dir
+
 
 class DictCacheBackend:
     """
@@ -65,7 +66,7 @@ class SQLiteCacheBackend:
     A SQLite-based cache backend with time-to-live (TTL) support.
     """
 
-    def __init__(self, in_memory = False):
+    def __init__(self, in_memory=False):
         if in_memory is True:
             self.db_path = ":memory:"
         else:
@@ -75,7 +76,7 @@ class SQLiteCacheBackend:
         self.con = sqlite3.connect(self.db_path)
         self.__create_table()
         register(self.con.close)
-    
+
     def __create_table(self):
         cur = self.con.cursor()
         cur.execute("""
@@ -88,31 +89,28 @@ class SQLiteCacheBackend:
         self.con.commit()
         cur.close()
 
-
     def clear(self):
         cur = self.con.cursor()
         cur.execute("DELETE FROM cache;")
         self.con.commit()
         cur.close()
 
-
     def __getitem__(self, key):
         cur = self.con.cursor()
         res = cur.execute("""
             SELECT value, timestamp
-                FROM cache 
+                FROM cache
                 WHERE key = ?;
         """, [key]).fetchone()
-        cur.close()        
+        cur.close()
 
         if res is None:
             return None
-        
+
         return {
             "data": json.loads(res[0]),
             "timestamp": datetime.fromisoformat(res[1]).timestamp()
         }
-
 
     def __setitem__(self, key, value):
         cur = self.con.cursor()
@@ -128,13 +126,11 @@ class SQLiteCacheBackend:
         self.con.commit()
         cur.close()
 
-
     def __delitem__(self, key):
         cur = self.con.cursor()
         cur.execute("DELETE FROM cache WHERE key = ?;", [key])
         self.con.commit()
         cur.close()
-
 
     def __contains__(self, key):
         return self.__getitem__(key) is not None
