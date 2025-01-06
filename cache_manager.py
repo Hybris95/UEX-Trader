@@ -102,7 +102,7 @@ class SQLiteCacheBackend:
             SELECT value, timestamp
                 FROM cache 
                 WHERE key = ?;
-        """, (key, datetime.now().isoformat())).fetchone()
+        """, [key]).fetchone()
         cur.close()        
 
         if res is None:
@@ -110,7 +110,7 @@ class SQLiteCacheBackend:
         
         return {
             "data": json.loads(res[0]),
-            "timestamp": datetime.fromisoformat(res[1])
+            "timestamp": datetime.fromisoformat(res[1]).timestamp()
         }
 
 
@@ -131,7 +131,7 @@ class SQLiteCacheBackend:
 
     def __delitem__(self, key):
         cur = self.con.cursor()
-        cur.execute("DELETE FROM cache WHERE key = ?;", key)
+        cur.execute("DELETE FROM cache WHERE key = ?;", [key])
         self.con.commit()
         cur.close()
 
