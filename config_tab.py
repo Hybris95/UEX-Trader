@@ -2,6 +2,7 @@
 from PyQt5.QtWidgets import (
     QWidget,
     QVBoxLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
@@ -130,31 +131,37 @@ class ConfigTab(QWidget):
 
     async def prep_cache_options(self):
         self.cache_ttl_vboxlayout = QVBoxLayout()
+
+        self.cache_options_label = QLabel(await translate("config_cache_options") + ":")
+
+        self.cache_ttl_hbox = QHBoxLayout()
         self.cache_ttl_label = QLabel(await translate("config_cache_ttl") + ":")
         self.cache_ttl_input = QLineEdit(self.config_manager.get_ttl())
         self.cache_ttl_input.editingFinished.connect(lambda: asyncio.create_task(self.update_cache_ttl()))
-        self.cache_ttl_vboxlayout.addWidget(self.cache_ttl_label)
-        self.cache_ttl_vboxlayout.addWidget(self.cache_ttl_input)
+
         self.clear_cache_button = QPushButton(await translate("clear_cache"), self)
         # self.clear_cache_button.setFixedSize(30, 30)  # Adjust size as needed
         self.clear_cache_button.pressed.connect(self.clear_cache)
         self.clear_cache_button.released.connect(self.clear_cache)
         
+        self.cache_ttl_hbox.addWidget(self.cache_ttl_label)
+        self.cache_ttl_hbox.addWidget(self.cache_ttl_input)
+        self.cache_ttl_vboxlayout.addWidget(self.cache_options_label)
+        self.cache_ttl_vboxlayout.addLayout(self.cache_ttl_hbox)
+        self.cache_ttl_vboxlayout.addWidget(self.clear_cache_button)
 
     async def populate_main_layout(self):
         self.main_vboxlayout.addLayout(self.api_key_vboxlayout)
         self.main_vboxlayout.addLayout(self.secret_key_vboxlayout)
         self.main_vboxlayout.addWidget(self.is_production_checkbox)
         self.main_vboxlayout.addWidget(self.debug_checkbox)
-        self.main_vboxlayout.addWidget(self.cache_options_label)
-        self.main_vboxlayout.addWidget(self.clear_cache_button)
+        self.main_vboxlayout.addLayout(self.cache_ttl_vboxlayout)
         self.main_vboxlayout.addWidget(self.appearance_label)
         self.main_vboxlayout.addWidget(self.appearance_input)
         self.main_vboxlayout.addWidget(self.language_label)
         self.main_vboxlayout.addWidget(self.language_input)
         self.main_vboxlayout.addWidget(self.version_label)
         self.main_vboxlayout.addWidget(self.version_input)
-        self.main_vboxlayout.addLayout(self.cache_ttl_vboxlayout)
 
     async def init_ui(self):
         self.main_vboxlayout = QVBoxLayout()
