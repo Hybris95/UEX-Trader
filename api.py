@@ -78,6 +78,8 @@ class API:
         if cached_data:
             logger.debug(f"Cache hit for {cache_key}")
             return cached_data
+        else:
+            logger.debug(f"Cache miss for {cache_key}")
         url = f"{await self.get_api_base_url()}{endpoint}"
         logger.debug(f"API Request: GET {url} {params if params else ''}")
         try:
