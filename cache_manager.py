@@ -6,7 +6,8 @@ import sqlite3
 import time
 
 from datetime import datetime
-from platformdirs import user_config_dir
+from platformdirs import user_data_dir
+from global_variables import app_name, cache_db_file
 
 
 class DictCacheBackend:
@@ -70,8 +71,8 @@ class SQLiteCacheBackend:
         if in_memory is True:
             self.db_path = ":memory:"
         else:
-            db_dir = user_config_dir("uex_trader", ensure_exists=True)
-            self.db_path = os.path.join(db_dir, "cache.db")
+            db_dir = user_data_dir(app_name, ensure_exists=True)
+            self.db_path = os.path.join(db_dir, cache_db_file)
 
         self.con = sqlite3.connect(self.db_path)
         self.__create_table()

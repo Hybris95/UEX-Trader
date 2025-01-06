@@ -3,9 +3,12 @@ import configparser
 import logging
 import base64
 import asyncio
+import os
 from logger_setup import setup_logger
 from api import API
 from translation_manager import TranslationManager
+from platformdirs import user_config_dir
+from global_variables import app_name, config_ini_file
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +24,9 @@ class ConfigManager:
         return cls._instance
 
     @staticmethod
-    async def get_instance(config_file="config.ini"):
+    async def get_instance():
+        db_dir = user_config_dir(app_name, ensure_exists=True)
+        config_file = os.path.join(db_dir, config_ini_file)
         config_manager = None
         if ConfigManager._instance is None:
             config_manager = ConfigManager(config_file)
@@ -30,7 +35,7 @@ class ConfigManager:
             config_manager = ConfigManager._instance
         return config_manager
 
-    def __init__(self, config_file="config.ini"):
+    def __init__(self, config_file=config_ini_file):
         if not hasattr(self, 'singleton'):  # Ensure __init__ is only called once
             self.config_file = config_file
             self.config = configparser.ConfigParser()
