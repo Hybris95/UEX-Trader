@@ -4,6 +4,7 @@ configparser==7.1.0
 qasync==0.27.1
 pyinstaller==6.11.1
 flake8==7.1.1
+platformdirs==4.3.6
 pytest==8.3.3
 pytest-qt==4.4.0
 pytest-xvfb==3.0.0
