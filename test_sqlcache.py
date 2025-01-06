@@ -1,39 +1,33 @@
 import time
-from cache_manager import SQLiteCacheBackend
 
-class TestSqlCache:
-    def test_set_and_get(self):
-        self.sqlcache = SQLiteCacheBackend(ttl=2, in_memory=True)
-        
-        self.sqlcache['foo'] = 'bar'
-        
-        assert self.sqlcache['foo'] == 'bar'
+from cache_manager import CacheManager
 
+def test_set_and_get():
+    sqlcache = CacheManager(backend="persistent")
+    sqlcache.set('foo', 'bar')
+    
+    assert sqlcache.get('foo', 1800) == 'bar'
 
-    def test_set_and_returns_none_on_expiration(self):
-        self.sqlcache = SQLiteCacheBackend(ttl=1, in_memory=True)
-        
-        self.sqlcache['foo'] = 'bar'
-        time.sleep(2)
-        
-        assert self.sqlcache['foo'] is None
+def test_set_and_returns_none_on_expiration():
+    sqlcache = CacheManager(backend="persistent")
+    sqlcache.set('foo', 'bar')
 
+    time.sleep(1)
+    
+    assert sqlcache.get('foo', 1) is None
 
-    def test_clear(self):
-        self.sqlcache = SQLiteCacheBackend(ttl=5, in_memory=True)
-        
-        self.sqlcache['foo'] = 'bar'
-        self.sqlcache.clear()
-        
-        assert self.sqlcache['foo'] is None
+def test_clear():
+    sqlcache = CacheManager(backend="persistent")
+    sqlcache.set('foo', 'bar')
+    sqlcache.clear()
 
-    def test_delete_key(self):
-        self.sqlcache = SQLiteCacheBackend(ttl=5, in_memory=True)
-        
-        self.sqlcache['foo'] = 'bar'
-        self.sqlcache['baz'] = 'qux'
-        
-        del self.sqlcache['foo']
-        
-        assert self.sqlcache['foo'] is None
-        assert self.sqlcache['baz'] == 'qux'
+    assert sqlcache.get('foo', 1) is None
+
+def test_delete_key():
+    sqlcache = CacheManager(backend="persistent")
+    sqlcache.set('foo', 'bar')
+    sqlcache.set('baz', 'qux')
+    sqlcache.invalidate('foo')
+
+    assert sqlcache.get('foo', 1) is None
+    assert sqlcache.get('baz', 10) == 'qux'
