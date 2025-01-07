@@ -153,15 +153,15 @@ class TradeTab(QWidget):
         self.terminal_filter_input.clear()
         self._unfiltered_terminals = []
         planet_id = self.planet_combo.currentData()
-        system_id = self.system_combo.currentData()
+        system = self.system_combo.currentData()
         try:
             if not planet_id:
-                if system_id:
-                    self._unfiltered_terminals = [terminal for terminal in (await self.api.fetch_terminals(system_id))
+                if system:
+                    self._unfiltered_terminals = [terminal for terminal in (await self.api.fetch_terminals_by_system(system))
                                                   if terminal.get("id_planet") == 0]
-                    logging.info("Terminals loaded successfully for system ID (Unknown planet): %s", system_id)
+                    logging.info("Terminals loaded successfully for system ID (Unknown planet): %s", system)
             else:
-                self._unfiltered_terminals = await self.api.fetch_terminals_from_planet(planet_id)
+                self._unfiltered_terminals = await self.api.fetch_terminals_by_planet(planet_id)
                 logging.info("Terminals loaded successfully for planet ID : %s", planet_id)
         except Exception as e:
             logging.error("Failed to load terminals: %s", e)
@@ -314,7 +314,7 @@ class TradeTab(QWidget):
 
     async def validate_terminal_and_commodity(self, planet_id, terminal_id, id_commodity):
         await self.ensure_initialized()
-        if not any(terminal.get('id') == terminal_id for terminal in (await self.api.fetch_terminals_from_planet(planet_id))):
+        if not any(terminal.get('id') == terminal_id for terminal in (await self.api.fetch_terminals_by_planet(planet_id))):
             raise ValueError(await translate("error_input_invalid_terminal"))
         if not any(commodity["id_commodity"] == id_commodity for commodity in self._current_terminal_commodities):
             raise ValueError(await translate("error_input_commodity_doesnt_exist"))
