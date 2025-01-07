@@ -1,7 +1,8 @@
 # gui.py
 from PyQt5.QtWidgets import QApplication, QTabWidget, QVBoxLayout, QWidget, QStyleFactory, QMessageBox
-from PyQt5.QtGui import QIcon, QPalette, QColor
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QSplashScreen, QProgressBar
+from PyQt5.QtGui import QIcon, QPalette, QColor, QPixmap
+from PyQt5.QtCore import Qt, QTimer
 from config_tab import ConfigTab
 from trade_tab import TradeTab
 from trade_route_tab import TradeRouteTab
@@ -11,6 +12,22 @@ from translation_manager import TranslationManager
 from api import API
 import asyncio
 from tools import translate
+
+
+class SplashScreen(QSplashScreen):
+    def __init__(self):
+        super().__init__(QPixmap("_internal/resources/UEXTrader_splashscreen.png"))
+        self.setWindowFlag(Qt.WindowStaysOnTopHint)
+        self.progress_bar = QProgressBar(self)
+        self.progress_bar.setGeometry(20, self.height() - 50, self.width() - 40, 30)
+        self.progress_bar.setAlignment(Qt.AlignCenter)
+        self.progress_bar.setFormat("%p%")
+        self.progress_bar.setTextVisible(True)
+        self.progress_bar.setRange(0, 100)
+
+    def update_progress(self, value, message):
+        self.progress_bar.setValue(value)
+        self.showMessage(message, Qt.AlignBottom | Qt.AlignCenter, Qt.white)
 
 
 class UexcorpTrader(QWidget):
@@ -29,11 +46,26 @@ class UexcorpTrader(QWidget):
     async def initialize(self):
         async with self._lock:
             if self.config_manager is None or self.translation_manager is None or self.api is None:
+                splash = SplashScreen()
+                splash.show()
+
+                def update_splash(value, message):
+                    splash.update_progress(value, message)
+                    QApplication.processEvents()
+                update_splash(0, "Initializing Config Manager...")
                 self.config_manager = await ConfigManager.get_instance()
+                update_splash(20, "Initializing Translation Manager...")
                 self.translation_manager = await TranslationManager.get_instance()
+                update_splash(40, "Initializing API...")
                 self.api = await API.get_instance(self.config_manager)
+                update_splash(60, "Initializing API Cache...")
+                await self.init_api_cache()
+                update_splash(80, "Initializing UI...")
                 await self.init_ui()
+                update_splash(90, "Applying Appearance Mode...")
                 await self.apply_appearance_mode(self.config_manager.get_appearance_mode())
+                update_splash(100, "Initialization Complete!")
+                QTimer.singleShot(1000, splash.close)  # Close splash after 1 second
                 self._initialized.set()
 
     async def ensure_initialized(self):
@@ -44,6 +76,11 @@ class UexcorpTrader(QWidget):
     async def __aenter__(self):
         await self.ensure_initialized()
         return self
+
+    async def init_api_cache(self):
+        await self.api.fetch_all_systems()
+        await self.api.fetch_planets()
+        await self.api.fetch_all_terminals()
 
     async def init_ui(self):
         self.setWindowTitle(await translate("window_title"))
