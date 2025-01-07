@@ -29,11 +29,14 @@ class UexcorpTrader(QWidget):
     async def initialize(self):
         async with self._lock:
             if self.config_manager is None or self.translation_manager is None or self.api is None:
+                # TODO - Add a splashscreen
                 self.config_manager = await ConfigManager.get_instance()
                 self.translation_manager = await TranslationManager.get_instance()
                 self.api = await API.get_instance(self.config_manager)
+                await self.init_api_cache()
                 await self.init_ui()
                 await self.apply_appearance_mode(self.config_manager.get_appearance_mode())
+                # TODO - Remove splashscreen
                 self._initialized.set()
 
     async def ensure_initialized(self):
@@ -44,6 +47,11 @@ class UexcorpTrader(QWidget):
     async def __aenter__(self):
         await self.ensure_initialized()
         return self
+
+    async def init_api_cache(self):
+        await self.api.fetch_all_systems()
+        await self.api.fetch_planets()
+        await self.api.fetch_all_terminals()
 
     async def init_ui(self):
         self.setWindowTitle(await translate("window_title"))

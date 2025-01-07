@@ -146,7 +146,7 @@ class CacheManager:
         else:
             raise ValueError("Invalid cache backend: {}".format(backend))
 
-    def get(self, key, ttl):
+    def get(self, key: str, ttl: int):
         data = None
         if key in self.cache:
             entry = self.cache[key]
@@ -158,6 +158,14 @@ class CacheManager:
 
     def set(self, key, data):
         self.cache[key] = data
+
+    def replace(self, key: str, new_data, primary_key=['id']):
+        # TODO - Get current data for the key given
+        # TODO - Check type of data (array or list)
+        # TODO - Replace in the current data each entry matching primary_key
+
+        # TODO - If no data recovered, do nothing
+        return
 
     def invalidate(self, key):
         if key in self.cache:

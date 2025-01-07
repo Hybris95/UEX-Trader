@@ -464,28 +464,27 @@ class BestTradeRouteTab(QWidget):
     async def get_terminals_from_planets(self, filtering_planets,
                                          filter_public_hangars=False,
                                          filter_space_only=False,
-                                         filtering_system_id=None):
+                                         filtering_system=None):
         await self.ensure_initialized()
         terminals = []
         universe = len(filtering_planets)
         returned_terminals = []
         # Get all terminals (filter by system/planet) from /terminals
-        if universe == 0 and filtering_system_id:
+        if universe == 0 and filtering_system:
             self.progress_bar.setMaximum(1)
             action_progress = 0
-            returned_terminals.extend([terminal for terminal in await self.api.fetch_terminals(filtering_system_id)
+            returned_terminals.extend([terminal for terminal in await self.api.fetch_terminals_by_system(filtering_system)
                                        if terminal.get("id_planet") == 0])
             action_progress += 1
             self.progress_bar.setValue(action_progress)
         else:
             self.progress_bar.setMaximum(universe)
             action_progress = 0
-            if universe > 1 and filtering_system_id:
-                returned_terminals.extend([terminal for terminal in await self.api.fetch_terminals(filtering_system_id)
+            if universe > 1 and filtering_system:
+                returned_terminals.extend([terminal for terminal in await self.api.fetch_terminals_by_system(filtering_system)
                                            if terminal.get("id_planet") == 0])
             for planet in filtering_planets:
-                returned_terminals.extend((await self.api.fetch_terminals(planet["id_star_system"],
-                                                                          planet["id"])))
+                returned_terminals.extend((await self.api.fetch_terminals_by_planet(planet["id"])))
                 action_progress += 1
                 self.progress_bar.setValue(action_progress)
                 self.progress_bar.setFormat(await translate("progress_step")
@@ -685,13 +684,11 @@ class BestTradeRouteTab(QWidget):
         total_margin_by_distance = total_margin / distance
         unit_margin_by_distance = unit_margin / distance
 
-        terminal_origin = await self.api.fetch_terminals(buy_commodity["id_star_system"],
-                                                         buy_commodity["id_planet"],
-                                                         buy_commodity["id_terminal"])
+        terminal_origin = await self.api.fetch_terminals_by_planet(buy_commodity["id_planet"],
+                                                                   buy_commodity["id_terminal"])
 
-        terminal_destination = await self.api.fetch_terminals(sell_commodity["id_star_system"],
-                                                              sell_commodity["id_planet"],
-                                                              sell_commodity["id_terminal"])
+        terminal_destination = await self.api.fetch_terminals_by_planet(sell_commodity["id_planet"],
+                                                                        sell_commodity["id_terminal"])
 
         mcs_origin = terminal_origin[0].get("max_container_size")
         mcs_destination = terminal_destination[0].get("max_container_size")
