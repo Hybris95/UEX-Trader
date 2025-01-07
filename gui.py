@@ -50,22 +50,27 @@ class UexcorpTrader(QWidget):
                 splash.show()
 
                 def update_splash(value, message):
-                    splash.update_progress(value, message)
-                    QApplication.processEvents()
-                update_splash(0, "Initializing Config Manager...")
-                self.config_manager = await ConfigManager.get_instance()
-                update_splash(20, "Initializing Translation Manager...")
-                self.translation_manager = await TranslationManager.get_instance()
-                update_splash(40, "Initializing API...")
-                self.api = await API.get_instance(self.config_manager)
-                update_splash(60, "Initializing API Cache...")
-                await self.init_api_cache()
-                update_splash(80, "Initializing UI...")
-                await self.init_ui()
-                update_splash(90, "Applying Appearance Mode...")
-                await self.apply_appearance_mode(self.config_manager.get_appearance_mode())
-                update_splash(100, "Initialization Complete!")
-                QTimer.singleShot(1000, splash.close)  # Close splash after 1 second
+                    def update():
+                        splash.update_progress(value, message)
+                        QApplication.processEvents()
+                    self.loop.call_soon_threadsafe(update)
+
+                async def init_tasks():
+                    update_splash(0, "Initializing Config Manager...")
+                    self.config_manager = await ConfigManager.get_instance()
+                    update_splash(20, "Initializing Translation Manager...")
+                    self.translation_manager = await TranslationManager.get_instance()
+                    update_splash(40, "Initializing API...")
+                    self.api = await API.get_instance(self.config_manager)
+                    update_splash(60, "Initializing API Cache...")
+                    await self.init_api_cache()
+                    update_splash(80, "Initializing UI...")
+                    await self.init_ui()
+                    update_splash(90, "Applying Appearance Mode...")
+                    await self.apply_appearance_mode(self.config_manager.get_appearance_mode())
+                    update_splash(100, "Initialization Complete!")
+                    QTimer.singleShot(1000, splash.close)  # Close splash after 1 second
+                await asyncio.gather(init_tasks())
                 self._initialized.set()
 
     async def ensure_initialized(self):
