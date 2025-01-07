@@ -231,15 +231,15 @@ class TradeRouteTab(QWidget):
         self.terminal_filter_input.clear()  # Ensure the filter input is cleared when updating terminals
         self._terminals_unfiltered = []
         planet_id = self.departure_planet_combo.currentData()
-        system_id = self.departure_system_combo.currentData()
+        system = self.departure_system_combo.currentData()
         try:
             if not planet_id:
-                if system_id:
-                    self._terminals_unfiltered = [terminal for terminal in (await self.api.fetch_terminals(system_id))
+                if system:
+                    self._terminals_unfiltered = [terminal for terminal in (await self.api.fetch_terminals_by_system(system))
                                                   if terminal.get("id_planet") == 0]
-                    logging.info("Terminals loaded successfully for system ID (Unknown planet): %s", system_id)
+                    logging.info("Terminals loaded successfully for system ID (Unknown planet): %s", system)
             else:
-                self._terminals_unfiltered = await self.api.fetch_terminals_from_planet(planet_id)
+                self._terminals_unfiltered = await self.api.fetch_terminals_by_planet(planet_id)
                 logging.info("Terminals loaded successfully for planet ID : %s", planet_id)
         except Exception as e:
             logging.error("Failed to load terminals: %s", e)
