@@ -13,6 +13,8 @@ from translation_manager import TranslationManager
 from api import API
 import asyncio
 from tools import translate
+from global_variables import trade_tab_activated, trade_route_tab_activated
+from global_variables import best_trade_route_tab_activated, submit_tab_activated
 
 
 class SplashScreen(QSplashScreen):
@@ -97,20 +99,23 @@ class UexcorpTrader(QWidget):
         self.tabs = QTabWidget()
         self.configTab = ConfigTab(self)
         await self.configTab.initialize()
-        self.tradeTab = TradeTab(self)
-        await self.tradeTab.initialize()
-        self.tradeRouteTab = TradeRouteTab(self)
-        await self.tradeRouteTab.initialize()
-        self.bestTradeRouteTab = BestTradeRouteTab(self)
-        await self.bestTradeRouteTab.initialize()
-        self.submitTab = SubmitTab(self)
-        await self.submitTab.initialize()
         self.tabs.addTab(self.configTab, await translate("config_tab"))
-        self.tabs.addTab(self.tradeTab, await translate("trade_tab"))
-        self.tabs.addTab(self.tradeRouteTab, await translate("trade_route_tab"))
-        self.tabs.addTab(self.bestTradeRouteTab, await translate("best_trade_route_tab"))
-        self.tabs.addTab(self.submitTab, await translate("submit_tab"))
-
+        if trade_tab_activated:
+            self.tradeTab = TradeTab(self)
+            await self.tradeTab.initialize()
+            self.tabs.addTab(self.tradeTab, await translate("trade_tab"))
+        if trade_route_tab_activated:
+            self.tradeRouteTab = TradeRouteTab(self)
+            await self.tradeRouteTab.initialize()
+            self.tabs.addTab(self.tradeRouteTab, await translate("trade_route_tab"))
+        if best_trade_route_tab_activated:
+            self.bestTradeRouteTab = BestTradeRouteTab(self)
+            await self.bestTradeRouteTab.initialize()
+            self.tabs.addTab(self.bestTradeRouteTab, await translate("best_trade_route_tab"))
+        if submit_tab_activated:
+            self.submitTab = SubmitTab(self)
+            await self.submitTab.initialize()
+            self.tabs.addTab(self.submitTab, await translate("submit_tab"))
         if not hasattr(self, "main_layout"):
             self.main_layout = QVBoxLayout()
         self.main_layout.addWidget(self.tabs)

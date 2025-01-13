@@ -2,13 +2,12 @@
 import asyncio
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QCheckBox
 from PyQt5.QtWidgets import QLabel, QLineEdit, QComboBox, QPushButton, QTableWidget, QTableWidgetItem
-from PyQt5.QtCore import Qt
 import traceback
 import logging
 from api import API
 from config_manager import ConfigManager
 from translation_manager import TranslationManager
-from tools import translate
+from tools import translate, create_async_callback
 from commodity import Commodity
 
 
@@ -48,6 +47,7 @@ class SubmitTab(QWidget):
         await self.prep_terminal()
         await self.prep_commodity_table()
         await self.prep_add_commodity()
+        await self.prep_submit_button()
         self.add_widgets()
         self.setLayout(self.main_layout)
 
@@ -92,12 +92,18 @@ class SubmitTab(QWidget):
         self.search_new_commodity_filter.setPlaceholderText(await translate("filter_commodities"))
         self.search_new_commodity_filter.textChanged.connect(self.filter_commodities)
         self.search_new_commodity_combo = QComboBox()
-        self.search_new_commodity_button = QPushButton()
+        self.search_new_commodity_button = QPushButton(await translate("add_new_commodity"))
+        self.search_new_commodity_button.clicked.connect(create_async_callback(self.add_new_commodity,
+                                                                               self.search_new_commodity_combo.currentData()))
         self.search_new_commodity_filter_layout.addWidget(self.search_new_commodity_label)
         self.search_new_commodity_filter_layout.addWidget(self.search_new_commodity_filter)
         self.search_new_commodity_hboxlayout.addLayout(self.search_new_commodity_filter_layout)
         self.search_new_commodity_hboxlayout.addWidget(self.search_new_commodity_combo)
         self.search_new_commodity_hboxlayout.addWidget(self.search_new_commodity_button)
+
+    async def prep_submit_button(self):
+        self.submit_button = QPushButton(await translate("submit_report"))
+        self.submit_button.clicked.connect(create_async_callback(self.ask_submit, self.commodity_table))
 
     def add_widgets(self):
         self.main_layout.addWidget(self.system_label)
@@ -109,6 +115,7 @@ class SubmitTab(QWidget):
         self.main_layout.addWidget(self.terminal_combo)
         self.main_layout.addWidget(self.commodity_table)
         self.main_layout.addLayout(self.search_new_commodity_hboxlayout)
+        self.main_layout.addWidget(self.submit_button)
 
     async def load_commodities(self):
         try:
@@ -168,15 +175,15 @@ class SubmitTab(QWidget):
         self.terminal_filter_input.clear()
         self._unfiltered_terminals = []
         planet_id = self.planet_combo.currentData()
-        system_id = self.system_combo.currentData()
+        sys_id = self.system_combo.currentData()
         try:
             if not planet_id:
-                if system_id:
-                    self._unfiltered_terminals = [terminal for terminal in (await self.api.fetch_terminals(system_id))
-                                                  if terminal.get("id_planet") == 0]
-                    logging.info("Terminals loaded successfully for system ID (Unknown planet): %s", system_id)
+                if sys_id:
+                    self._unfiltered_terminals = [term for term in (await self.api.fetch_terminals_by_system(sys_id))
+                                                  if term.get("id_planet") == 0]
+                    logging.info("Terminals loaded successfully for system ID (Unknown planet): %s", sys_id)
             else:
-                self._unfiltered_terminals = await self.api.fetch_terminals_from_planet(planet_id)
+                self._unfiltered_terminals = await self.api.fetch_terminals_by_planet(planet_id)
                 logging.info("Terminals loaded successfully for planet ID : %s", planet_id)
         except Exception as e:
             logging.error("Failed to load terminals: %s", e)
@@ -199,6 +206,12 @@ class SubmitTab(QWidget):
             index = self.terminal_combo.findData(terminal_id)
             if index != -1:
                 self.terminal_combo.setCurrentIndex(index)
+
+    def add_new_commodity(self, commodity_id: 'int'):
+        # TODO - Check if commodity_id exists
+        commodity = Commodity()  # TODO - Create a "Commodity" object from this commodity_id
+        row_number = 0  # TODO - Add a new row and get its row_number
+        self.add_commodity(row_number, commodity, existing=False)
 
     def add_commodity(self, row: 'int', commodity: 'Commodity', existing=True):
         item_id = QTableWidgetItem(commodity.id)

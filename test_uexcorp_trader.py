@@ -1,6 +1,8 @@
 import pytest
 from PyQt5.QtWidgets import QTabWidget
 from PyQt5.QtGui import QColor
+from global_variables import trade_tab_activated, trade_route_tab_activated
+from global_variables import best_trade_route_tab_activated, submit_tab_activated
 
 
 @pytest.mark.asyncio
@@ -23,10 +25,21 @@ async def test_uexcorp_trader_apply_appearance_mode(trader, qapp):
 async def test_tabs_exist(trader):
     """Test that all tabs are present."""
     tabs = trader.findChild(QTabWidget)
+    count_expected = (int(trade_tab_activated) + int(trade_route_tab_activated)
+                      + int(best_trade_route_tab_activated) + int(submit_tab_activated))
     assert tabs is not None
-    assert tabs.count() == 4
-    assert tabs.tabText(0) == "Configuration"
-    assert tabs.tabText(1) == "Trade Commodity"
-    assert tabs.tabText(2) == "Find Trade Route"
-    assert tabs.tabText(3) == "Best Trade Routes"
-    assert tabs.tabText(4) == "Submit Terminal"
+    assert tabs.count() == count_expected
+    current_count = 0
+    assert tabs.tabText(current_count) == "Configuration"
+    if trade_tab_activated:
+        current_count += 1
+        assert tabs.tabText(current_count) == "Trade Commodity"
+    if trade_route_tab_activated:
+        current_count += 1
+        assert tabs.tabText(current_count) == "Find Trade Route"
+    if best_trade_route_tab_activated:
+        current_count += 1
+        assert tabs.tabText(current_count) == "Best Trade Routes"
+    if submit_tab_activated:
+        current_count += 1
+        assert tabs.tabText(current_count) == "Submit Terminal"

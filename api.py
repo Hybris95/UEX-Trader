@@ -10,6 +10,7 @@ from itertools import groupby
 from operator import itemgetter
 from typing import List
 from commodity import Commodity
+from global_variables import persistent_cache_activated
 
 
 class API:
@@ -35,7 +36,10 @@ class API:
     def __init__(self, config_manager):
         if not hasattr(self, 'singleton'):  # Ensure __init__ is only called once
             self.config_manager = config_manager
-            self.cache = CacheManager()
+            if persistent_cache_activated:
+                self.cache = CacheManager(backend="persistent")
+            else:
+                self.cache = CacheManager(backend="local")
             self.session = None
             self.singleton = True
 
@@ -267,7 +271,7 @@ class API:
                 commodity_route_hash = hashlib.md5(str(commodity_route_params).encode('utf-8')).hexdigest()
                 self.cache.set(f"{endpoint}_{commodity_route_hash}", commodity_route)
         return commodities_routes
-    
+
     async def _filter_std_commodities(self, commodities):
         return [commodity for commodity in commodities
                 if commodity.get("is_available", 0) == 1]
