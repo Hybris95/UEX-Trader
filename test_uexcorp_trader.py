@@ -28,7 +28,7 @@ async def test_tabs_exist(trader):
     count_expected = (int(trade_tab_activated) + int(trade_route_tab_activated)
                       + int(best_trade_route_tab_activated) + int(submit_tab_activated))
     assert tabs is not None
-    assert tabs.count() == count_expected
+    assert tabs.count() == count_expected + 1
     current_count = 0
     assert tabs.tabText(current_count) == "Configuration"
     if trade_tab_activated:
