@@ -1,6 +1,7 @@
 import time
 
 from cache_manager import CacheManager
+# from global_variables import persistent_cache_activated # TODO - Add functional test with persistence activated/deactivated
 
 
 # Unitary tests

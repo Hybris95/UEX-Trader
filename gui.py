@@ -7,11 +7,14 @@ from config_tab import ConfigTab
 from trade_tab import TradeTab
 from trade_route_tab import TradeRouteTab
 from best_trade_route import BestTradeRouteTab
+from submit_tab import SubmitTab
 from config_manager import ConfigManager
 from translation_manager import TranslationManager
 from api import API
 import asyncio
 from tools import translate
+from global_variables import trade_tab_activated, trade_route_tab_activated
+from global_variables import best_trade_route_tab_activated, submit_tab_activated
 
 
 class SplashScreen(QSplashScreen):
@@ -58,15 +61,23 @@ class UexcorpTrader(QWidget):
                 async def init_tasks():
                     update_splash(0, "Initializing Config Manager...")
                     self.config_manager = await ConfigManager.get_instance()
-                    update_splash(20, "Initializing Translation Manager...")
+                    update_splash(1, "Initializing Translation Manager...")
                     self.translation_manager = await TranslationManager.get_instance()
-                    update_splash(40, "Initializing API...")
+                    update_splash(2, "Initializing API...")
                     self.api = await API.get_instance(self.config_manager)
-                    update_splash(60, "Initializing API Cache...")
-                    await self.init_api_cache()
-                    update_splash(80, "Initializing UI...")
+                    update_splash(3, "Initializing API Cache - Systems...")
+                    await self.api.fetch_all_systems()
+                    update_splash(5, "Initializing API Cache - Planets...")
+                    await self.api.fetch_planets()
+                    update_splash(8, "Initializing API Cache - Terminals...")
+                    await self.api.fetch_all_terminals()
+                    update_splash(12, "Initializing API Cache - Commodities...")
+                    await self.api.fetch_all_commodities_prices()
+                    update_splash(55, "Initializing API Cache - Distances (Once per week)...")
+                    await self.api.fetch_all_routes()
+                    update_splash(98, "Initializing UI...")
                     await self.init_ui()
-                    update_splash(90, "Applying Appearance Mode...")
+                    update_splash(99, "Applying Appearance Mode...")
                     await self.apply_appearance_mode(self.config_manager.get_appearance_mode())
                     update_splash(100, "Initialization Complete!")
                     QTimer.singleShot(1000, splash.close)  # Close splash after 1 second
@@ -82,11 +93,6 @@ class UexcorpTrader(QWidget):
         await self.ensure_initialized()
         return self
 
-    async def init_api_cache(self):
-        await self.api.fetch_all_systems()
-        await self.api.fetch_planets()
-        await self.api.fetch_all_terminals()
-
     async def init_ui(self):
         self.setWindowTitle(await translate("window_title"))
         self.setWindowIcon(QIcon("_internal/resources/UEXTrader_icon_resized.png"))
@@ -96,17 +102,23 @@ class UexcorpTrader(QWidget):
         self.tabs = QTabWidget()
         self.configTab = ConfigTab(self)
         await self.configTab.initialize()
-        self.tradeTab = TradeTab(self)
-        await self.tradeTab.initialize()
-        self.tradeRouteTab = TradeRouteTab(self)
-        await self.tradeRouteTab.initialize()
-        self.bestTradeRouteTab = BestTradeRouteTab(self)
-        await self.bestTradeRouteTab.initialize()
         self.tabs.addTab(self.configTab, await translate("config_tab"))
-        self.tabs.addTab(self.tradeTab, await translate("trade_tab"))
-        self.tabs.addTab(self.tradeRouteTab, await translate("trade_route_tab"))
-        self.tabs.addTab(self.bestTradeRouteTab, await translate("best_trade_route_tab"))
-
+        if trade_tab_activated:
+            self.tradeTab = TradeTab(self)
+            await self.tradeTab.initialize()
+            self.tabs.addTab(self.tradeTab, await translate("trade_tab"))
+        if trade_route_tab_activated:
+            self.tradeRouteTab = TradeRouteTab(self)
+            await self.tradeRouteTab.initialize()
+            self.tabs.addTab(self.tradeRouteTab, await translate("trade_route_tab"))
+        if best_trade_route_tab_activated:
+            self.bestTradeRouteTab = BestTradeRouteTab(self)
+            await self.bestTradeRouteTab.initialize()
+            self.tabs.addTab(self.bestTradeRouteTab, await translate("best_trade_route_tab"))
+        if submit_tab_activated:
+            self.submitTab = SubmitTab(self)
+            await self.submitTab.initialize()
+            self.tabs.addTab(self.submitTab, await translate("submit_tab"))
         if not hasattr(self, "main_layout"):
             self.main_layout = QVBoxLayout()
         self.main_layout.addWidget(self.tabs)
