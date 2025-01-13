@@ -61,15 +61,23 @@ class UexcorpTrader(QWidget):
                 async def init_tasks():
                     update_splash(0, "Initializing Config Manager...")
                     self.config_manager = await ConfigManager.get_instance()
-                    update_splash(20, "Initializing Translation Manager...")
+                    update_splash(1, "Initializing Translation Manager...")
                     self.translation_manager = await TranslationManager.get_instance()
-                    update_splash(40, "Initializing API...")
+                    update_splash(2, "Initializing API...")
                     self.api = await API.get_instance(self.config_manager)
-                    update_splash(60, "Initializing API Cache...")
-                    await self.init_api_cache()
-                    update_splash(80, "Initializing UI...")
+                    update_splash(3, "Initializing API Cache - Systems...")
+                    await self.api.fetch_all_systems()
+                    update_splash(5, "Initializing API Cache - Planets...")
+                    await self.api.fetch_planets()
+                    update_splash(8, "Initializing API Cache - Terminals...")
+                    await self.api.fetch_all_terminals()
+                    update_splash(12, "Initializing API Cache - Commodities...")
+                    await self.api.fetch_all_commodities_prices()
+                    update_splash(55, "Initializing API Cache - Distances (Once per week)...")
+                    await self.api.fetch_all_routes()
+                    update_splash(98, "Initializing UI...")
                     await self.init_ui()
-                    update_splash(90, "Applying Appearance Mode...")
+                    update_splash(99, "Applying Appearance Mode...")
                     await self.apply_appearance_mode(self.config_manager.get_appearance_mode())
                     update_splash(100, "Initialization Complete!")
                     QTimer.singleShot(1000, splash.close)  # Close splash after 1 second
@@ -84,11 +92,6 @@ class UexcorpTrader(QWidget):
     async def __aenter__(self):
         await self.ensure_initialized()
         return self
-
-    async def init_api_cache(self):
-        await self.api.fetch_all_systems()
-        await self.api.fetch_planets()
-        await self.api.fetch_all_terminals()
 
     async def init_ui(self):
         self.setWindowTitle(await translate("window_title"))
