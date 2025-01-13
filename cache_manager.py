@@ -159,13 +159,28 @@ class CacheManager:
     def set(self, key, data):
         self.cache[key] = data
 
-    def replace(self, key: str, new_data, primary_key=['id']):
-        # TODO - Get current data for the key given
-        # TODO - Check type of data (array or list)
-        # TODO - Replace in the current data each entry matching primary_key
-
-        # TODO - If no data recovered, do nothing
-        return
+    def replace(self, key: str, new_data, ttl: int, primary_key=['id']):
+        old_data = self.get(key, ttl)
+        if not old_data:
+            return
+        if isinstance(old_data, list):
+            new_list = []
+            list_modified = False
+            for old_value in old_data:
+                for new_value in new_data:
+                    existing_value = True
+                    for key in primary_key:
+                        if old_value[key] != new_value[key]:
+                            existing_value = False
+                    if existing_value:
+                        new_list.append(new_value)
+                        list_modified = True
+                    else:
+                        new_list.append(old_value)
+            if list_modified:
+                self.cache[key] = new_list  # TODO - Make sure timestamp is not modified !
+        if isinstance(old_data, dict):
+            return  # TODO - Replace with dictionary ?
 
     def invalidate(self, key):
         if key in self.cache:
