@@ -8,6 +8,10 @@ import traceback
 import hashlib
 from itertools import groupby
 from operator import itemgetter
+from typing import List
+from commodity import Commodity
+from global_variables import persistent_cache_activated
+from global_variables import system_ttl, planet_ttl, terminal_ttl
 
 
 class API:
@@ -33,7 +37,10 @@ class API:
     def __init__(self, config_manager):
         if not hasattr(self, 'singleton'):  # Ensure __init__ is only called once
             self.config_manager = config_manager
-            self.cache = CacheManager()
+            if persistent_cache_activated:
+                self.cache = CacheManager(backend="persistent")
+            else:
+                self.cache = CacheManager(backend="local")
             self.session = None
             self.singleton = True
 
@@ -157,21 +164,44 @@ class API:
             if self.config_manager.get_debug():
                 logging.debug(traceback.format_exc())
 
-    def _group_by_and_set(self, data, param: str, endpoint: str):
-        grouped_data_by_param = self._group_by(data, param)
+    def _group_by_and_set(self, data, group_param: str, endpoint: str):
+        grouped_data_by_param = self._group_by(data, group_param)
         for data_grouped in grouped_data_by_param:
             if len(data_grouped) > 0:
-                data_grouped_params = {param: data_grouped[0][param]}
+                data_grouped_params = {group_param: data_grouped[0][group_param]}
                 data_grouped_hash = hashlib.md5(str(data_grouped_params).encode('utf-8')).hexdigest()
                 self.cache.set(f"{endpoint}_{data_grouped_hash}", data_grouped)
 
-    def _group_by_and_replace(self, data, param: str, endpoint: str, primary_key=['id']):
-        grouped_data_by_param = self._group_by(data, param)
+    def _group_by_and_replace(self, data, group_param: str, endpoint: str, ttl=None, replace_primary_key=['id']):
+        grouped_data_by_param = self._group_by(data, group_param)
+        if not ttl:
+            ttl = int(self.config_manager.get_ttl())
         for data_grouped in grouped_data_by_param:
             if len(data_grouped) > 0:
-                data_grouped_params = {param: data_grouped[0][param]}
+                data_grouped_params = {group_param: data_grouped[0][group_param]}
                 data_grouped_hash = hashlib.md5(str(data_grouped_params).encode('utf-8')).hexdigest()
-                self.cache.replace(f"{endpoint}_{data_grouped_hash}", data_grouped, primary_key)
+                self.cache.replace(f"{endpoint}_{data_grouped_hash}", data_grouped, ttl, replace_primary_key)
+
+    async def _fetch_commodities(self, params):
+        endpoint = "/commodities"
+        commodities, cached = (await self._fetch_data(endpoint, params=params))
+        if not cached:
+            for commodity in commodities:
+                commodity_params = {'id_commodity', commodity['id']}
+                commodity_hash = hashlib.md5(str(commodity_params).encode('utf-8')).hexdigest()
+                self.cache.set(f"{endpoint}_{commodity_hash}", commodity)
+        return commodities
+
+    async def regroup_all_commodities_prices_from_cache(self):
+        endpoint = "/commodities_prices"
+        commodity_params = {}
+        commodity_hash = hashlib.md5(str(commodity_params).encode('utf-8')).hexdigest()
+        commodity_key = f"{endpoint}_{commodity_hash}"
+        ttl = int(self.config_manager.get_ttl())
+        commodities = self.cache.get(commodity_key, ttl)
+        if commodities:
+            self._group_by_and_set(commodities, 'id_terminal', endpoint)
+            self._group_by_and_set(commodities, 'id_commodity', endpoint)
 
     async def _fetch_commodities_prices(self, params):
         endpoint = "/commodities_prices"
@@ -179,64 +209,65 @@ class API:
         if not cached:
             if not params or len(params) == 0:
                 self._group_by_and_set(commodities, 'id_terminal', endpoint)
-                self._group_by_and_set(commodities, 'id', endpoint)
+                self._group_by_and_set(commodities, 'id_commodity', endpoint)
             else:
                 primary_key = ['id_commodity', 'id_terminal']
-                self._group_by_and_replace(commodities, 'id_terminal', endpoint, primary_key)
-                self._group_by_and_replace(commodities, 'id', endpoint, primary_key)
+                self._group_by_and_replace(commodities, 'id_terminal', endpoint, replace_primary_key=primary_key)
+                self._group_by_and_replace(commodities, 'id_commodity', endpoint, replace_primary_key=primary_key)
             for commodity in commodities:
-                commodity_terminal_params = {'id_commodity': commodity['id'], 'id_terminal': commodity['id_terminal']}
+                commodity_terminal_params = {'id_commodity': commodity['id_commodity'],
+                                             'id_terminal': commodity['id_terminal']}
                 commodity_terminal_hash = hashlib.md5(str(commodity_terminal_params).encode('utf-8')).hexdigest()
-                self.cache.set(f"{endpoint}_{commodity_terminal_hash}", commodity)
+                self.cache.set(f"{endpoint}_{commodity_terminal_hash}", [commodity])
         return commodities
 
     async def _fetch_planets(self, params):
         endpoint = "/planets"
-        planets, cached = (await self._fetch_data(endpoint, params=params, ttl=86400))
+        planets, cached = (await self._fetch_data(endpoint, params=params, ttl=planet_ttl))
         if not cached:
             if not params or len(params) == 0:
                 self._group_by_and_set(planets, 'id_star_system', endpoint)
                 self._group_by_and_set(planets, 'id_faction', endpoint)
                 self._group_by_and_set(planets, 'id_jurisdiction', endpoint)
             else:
-                self._group_by_and_replace(planets, 'id_star_system', endpoint)
-                self._group_by_and_replace(planets, 'id_faction', endpoint)
-                self._group_by_and_replace(planets, 'id_jurisdiction', endpoint)
+                self._group_by_and_replace(planets, 'id_star_system', endpoint, ttl=planet_ttl)
+                self._group_by_and_replace(planets, 'id_faction', endpoint, ttl=planet_ttl)
+                self._group_by_and_replace(planets, 'id_jurisdiction', endpoint, ttl=planet_ttl)
             for planet in planets:
                 planet_params = {'id_planet': planet['id']}
                 planet_hash = hashlib.md5(str(planet_params).encode('utf-8')).hexdigest()
-                self.cache.set(f"{endpoint}_{planet_hash}", planet)
+                self.cache.set(f"{endpoint}_{planet_hash}", [planet])
         return planets
 
     async def _fetch_terminals(self, params):
         endpoint = "/terminals"
-        terminals, cached = (await self._fetch_data(endpoint, params=params, ttl=43200))
+        terminals, cached = (await self._fetch_data(endpoint, params=params, ttl=terminal_ttl))
         if not cached:
             if not params or len(params) == 0:
                 self._group_by_and_set(terminals, 'id_star_system', endpoint)
                 self._group_by_and_set(terminals, 'id_planet', endpoint)
             else:
-                self._group_by_and_replace(terminals, 'id_star_system', endpoint)
-                self._group_by_and_replace(terminals, 'id_planet', endpoint)
+                self._group_by_and_replace(terminals, 'id_star_system', endpoint, ttl=terminal_ttl)
+                self._group_by_and_replace(terminals, 'id_planet', endpoint, ttl=terminal_ttl)
             for terminal in terminals:
                 terminal_params = {'id_terminal': terminal['id']}
                 terminal_hash = hashlib.md5(str(terminal_params).encode('utf-8')).hexdigest()
-                self.cache.set(f"{endpoint}_{terminal_hash}", terminal)
+                self.cache.set(f"{endpoint}_{terminal_hash}", [terminal])
         return terminals
 
     async def _fetch_systems(self, params=None):
         endpoint = "/star_systems"
-        systems, cached = (await self._fetch_data(endpoint, params, ttl=86400))
+        systems, cached = (await self._fetch_data(endpoint, params, ttl=system_ttl))
         if not cached:
             for system in systems:
                 system_params = {'id_star_system': system['id']}
                 system_hash = hashlib.md5(str(system_params).encode('utf-8')).hexdigest()
-                self.cache.set(f"{endpoint}_{system_hash}", system)
+                self.cache.set(f"{endpoint}_{system_hash}", [system])
         return systems
 
     async def _fetch_commodities_routes(self, params):
         endpoint = "/commodities_routes"
-        commodities_routes, cached = (await self._fetch_data(endpoint, params))
+        commodities_routes, cached = (await self._fetch_data(endpoint, params, ttl=planet_ttl))
         if not cached:
             if not params or len(params) == 0:
                 self._group_by_and_set(commodities_routes, 'id_terminal_origin', endpoint)
@@ -253,10 +284,18 @@ class API:
                                           'id_terminal_origin': commodity_route['id_terminal_origin'],
                                           'id_terminal_destination': commodity_route['id_terminal_destination']}
                 commodity_route_hash = hashlib.md5(str(commodity_route_params).encode('utf-8')).hexdigest()
-                self.cache.set(f"{endpoint}_{commodity_route_hash}", commodity_route)
+                self.cache.set(f"{endpoint}_{commodity_route_hash}", [commodity_route])
         return commodities_routes
 
     async def _filter_std_commodities(self, commodities):
+        return [commodity for commodity in commodities
+                if commodity.get("is_available", 0) == 1]
+
+    async def fetch_all_commodities(self):
+        commodities = await self._fetch_commodities({})
+        return (await self._filter_std_commodities(commodities))
+
+    async def _filter_std_commodities_prices(self, commodities):
         selected_version = await self.config_manager.get_version_value()
         return [commodity for commodity in commodities
                 if commodity.get("game_version", '0.0') == selected_version]
@@ -264,14 +303,26 @@ class API:
     async def fetch_commodities_by_id(self, id_commodity):
         params = {'id_commodity': id_commodity}
         commodities = await self._fetch_commodities_prices(params)
-        return (await self._filter_std_commodities(commodities))
+        return (await self._filter_std_commodities_prices(commodities))
 
     async def fetch_commodities_from_terminal(self, id_terminal, id_commodity=None):
         params = {'id_terminal': id_terminal}
         if id_commodity:
             params['id_commodity'] = id_commodity
         commodities = await self._fetch_commodities_prices(params)
-        return (await self._filter_std_commodities(commodities))
+        return (await self._filter_std_commodities_prices(commodities))
+
+    async def fetch_all_commodities_prices(self):
+        endpoint = "/commodities_prices"
+        all_terminals = await self.fetch_all_terminals()
+        commodities = []
+        for terminal in all_terminals:
+            commodities.extend(await self.fetch_commodities_from_terminal(terminal['id']))
+        commodities_params = {}
+        commodities_hash = hashlib.md5(str(commodities_params).encode('utf-8')).hexdigest()
+        self.cache.set(f"{endpoint}_{commodities_hash}", commodities)
+        await self.regroup_all_commodities_prices_from_cache()
+        return (await self._filter_std_commodities_prices(commodities))
 
     def _filter_std_planets(self, planets):
         return [planet for planet in planets
@@ -281,7 +332,13 @@ class API:
         params = {}
         if system_id:
             params = {'id_star_system': system_id}
-        # TODO - if params is only recovering one id, try to get from cache first
+        if planet_id:
+            planet_params = {'id_planet': planet_id}
+            planet_hash = hashlib.md5(str(planet_params).encode('utf-8')).hexdigest()
+            cache_key = f"/planets_{planet_hash}"
+            planets = self.cache.get(cache_key, ttl=planet_ttl)
+            if planets:
+                return planets
         planets = await self._fetch_planets(params)
         return [planet for planet in self._filter_std_planets(planets)
                 if (not planet_id or planet.get("id") == planet_id)]
@@ -302,7 +359,13 @@ class API:
 
     async def fetch_terminals_by_planet(self, planet_id, filtering_terminal=None):
         params = {'id_planet': planet_id}
-        # TODO - if params is only recovering one id, try to get from cache first
+        if filtering_terminal:
+            terminal_params = {'id_terminal': filtering_terminal}
+            terminal_hash = hashlib.md5(str(terminal_params).encode('utf-8')).hexdigest()
+            cache_key = f"/terminals_{terminal_hash}"
+            terminals = self.cache.get(cache_key, ttl=terminal_ttl)
+            if terminals:
+                return terminals
         terminals = await self._fetch_terminals(params)
         return [terminal for terminal in self._filter_std_terminals(terminals)
                 if (not filtering_terminal or terminal.get("id") == filtering_terminal)]
@@ -322,7 +385,12 @@ class API:
         return self._filter_std_systems(systems)
 
     async def fetch_system(self, system_id):
-        # TODO - if params is only recovering one id, try to get from cache first
+        system_params = {'id_star_system': system_id}
+        system_hash = hashlib.md5(str(system_params).encode('utf-8')).hexdigest()
+        cache_key = f"/star_systems_{system_hash}"
+        systems = self.cache.get(cache_key, ttl=system_ttl)
+        if systems:
+            return systems
         systems = await self._fetch_systems()
         return [system for system in self._filter_std_systems(systems)
                 if system.get("id") == system_id]
@@ -334,6 +402,21 @@ class API:
         """Performs a trade operation (buy/sell)."""
         # TODO - Check if data is formed properly considering user_trades_add endpoint
         return await self._post_data("/user_trades_add/", data)
+
+    async def fetch_all_routes(self):
+        endpoint = "/commodities_routes"
+        all_terminals = await self.fetch_all_terminals()
+        all_routes = []
+        for terminal_origin in all_terminals:
+            params = {
+                'id_terminal_origin': terminal_origin['id']
+            }
+            routes_from_origin = await self._fetch_commodities_routes(params)
+            for route in routes_from_origin:
+                params['id_terminal_destination'] = route['id_terminal_destination']
+                params_hash = hashlib.md5(str(params).encode('utf-8')).hexdigest()
+                self.cache.set(f"{endpoint}_{params_hash}", [route])
+            all_routes.extend(routes_from_origin)  # TODO - Store all routes in cache ?
 
     async def fetch_distance(self, id_terminal_origin, id_terminal_destination):
         params = {
@@ -349,3 +432,32 @@ class API:
             else:
                 return route["distance"]
         return 1
+
+    async def commodity_submit(self, id_commodity_terminal: int, commodities: List[Commodity], details: str):
+        # TODO - Check if id_commodity_terminal exists as a commodity terminal
+
+        if not isinstance(commodities, list):
+            raise TypeError("commodities must be a list")
+
+        logger = self.get_logger()
+        data = {
+            "id_terminal": id_commodity_terminal,
+            "type": "commodity",
+            "prices": [],
+            "details": details,
+            "game_version": await self.config_manager.get_version_value()
+        }
+        for commodity in commodities:
+            if not isinstance(commodity, Commodity):
+                raise TypeError("All elements in commodities must be instances of Commodity")
+            price = {
+                "id_commodity": commodity.id,
+                commodity.get_price_property(): commodity.price,
+                "is_missing": commodity.missing,
+                commodity.get_scu_property(): commodity.scu,
+                commodity.get_status_property(): commodity.status
+            }
+            data['prices'].append(price)
+
+        logger.debug(f"Submitting commodities to terminal {id_commodity_terminal}")
+        return await self._post_data("/data_submit/", data)
