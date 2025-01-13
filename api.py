@@ -11,6 +11,7 @@ from operator import itemgetter
 from typing import List
 from commodity import Commodity
 from global_variables import persistent_cache_activated
+from global_variables import system_ttl, planet_ttl, terminal_ttl
 
 
 class API:
@@ -208,7 +209,7 @@ class API:
 
     async def _fetch_planets(self, params):
         endpoint = "/planets"
-        planets, cached = (await self._fetch_data(endpoint, params=params, ttl=86400))
+        planets, cached = (await self._fetch_data(endpoint, params=params, ttl=planet_ttl))
         if not cached:
             if not params or len(params) == 0:
                 self._group_by_and_set(planets, 'id_star_system', endpoint)
@@ -226,7 +227,7 @@ class API:
 
     async def _fetch_terminals(self, params):
         endpoint = "/terminals"
-        terminals, cached = (await self._fetch_data(endpoint, params=params, ttl=43200))
+        terminals, cached = (await self._fetch_data(endpoint, params=params, ttl=terminal_ttl))
         if not cached:
             if not params or len(params) == 0:
                 self._group_by_and_set(terminals, 'id_star_system', endpoint)
@@ -242,7 +243,7 @@ class API:
 
     async def _fetch_systems(self, params=None):
         endpoint = "/star_systems"
-        systems, cached = (await self._fetch_data(endpoint, params, ttl=86400))
+        systems, cached = (await self._fetch_data(endpoint, params, ttl=system_ttl))
         if not cached:
             for system in systems:
                 system_params = {'id_star_system': system['id']}
@@ -305,7 +306,13 @@ class API:
         params = {}
         if system_id:
             params = {'id_star_system': system_id}
-        # TODO - if params is only recovering one id, try to get from cache first
+        if planet_id:
+            planet_params = {'id_planet': planet_id}
+            planet_hash = hashlib.md5(str(planet_params).encode('utf-8')).hexdigest()
+            cache_key = f"/planets_{planet_hash}"
+            planets = self.cache.get(cache_key, ttl=planet_ttl)
+            if planets:
+                return planets
         planets = await self._fetch_planets(params)
         return [planet for planet in self._filter_std_planets(planets)
                 if (not planet_id or planet.get("id") == planet_id)]
@@ -326,7 +333,13 @@ class API:
 
     async def fetch_terminals_by_planet(self, planet_id, filtering_terminal=None):
         params = {'id_planet': planet_id}
-        # TODO - if params is only recovering one id, try to get from cache first
+        if filtering_terminal:
+            terminal_params = {'id_terminal': filtering_terminal}
+            terminal_hash = hashlib.md5(str(terminal_params).encode('utf-8')).hexdigest()
+            cache_key = f"/terminals_{terminal_hash}"
+            terminals = self.cache.get(cache_key, ttl=terminal_ttl)
+            if terminals:
+                return terminals
         terminals = await self._fetch_terminals(params)
         return [terminal for terminal in self._filter_std_terminals(terminals)
                 if (not filtering_terminal or terminal.get("id") == filtering_terminal)]
@@ -346,7 +359,12 @@ class API:
         return self._filter_std_systems(systems)
 
     async def fetch_system(self, system_id):
-        # TODO - if params is only recovering one id, try to get from cache first
+        system_params = {'id_star_system': system_id}
+        system_hash = hashlib.md5(str(system_params).encode('utf-8')).hexdigest()
+        cache_key = f"/star_systems_{system_hash}"
+        systems = self.cache.get(cache_key, ttl=system_ttl)
+        if systems:
+            return systems
         systems = await self._fetch_systems()
         return [system for system in self._filter_std_systems(systems)
                 if system.get("id") == system_id]
