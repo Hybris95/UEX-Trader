@@ -192,21 +192,33 @@ class API:
                 self.cache.set(f"{endpoint}_{commodity_hash}", commodity)
         return commodities
 
+    async def regroup_all_commodities_prices_from_cache(self):
+        endpoint = "/commodities_prices"
+        commodity_params = {}
+        commodity_hash = hashlib.md5(str(commodity_params).encode('utf-8')).hexdigest()
+        commodity_key = f"{endpoint}_{commodity_hash}"
+        ttl = int(self.config_manager.get_ttl())
+        commodities = self.cache.get(commodity_key, ttl)
+        if commodities:
+            self._group_by_and_set(commodities, 'id_terminal', endpoint)
+            self._group_by_and_set(commodities, 'id_commodity', endpoint)
+
     async def _fetch_commodities_prices(self, params):
         endpoint = "/commodities_prices"
         commodities, cached = (await self._fetch_data(endpoint, params=params))
         if not cached:
             if not params or len(params) == 0:
                 self._group_by_and_set(commodities, 'id_terminal', endpoint)
-                self._group_by_and_set(commodities, 'id', endpoint)
+                self._group_by_and_set(commodities, 'id_commodity', endpoint)
             else:
                 primary_key = ['id_commodity', 'id_terminal']
                 self._group_by_and_replace(commodities, 'id_terminal', endpoint, replace_primary_key=primary_key)
-                self._group_by_and_replace(commodities, 'id', endpoint, replace_primary_key=primary_key)
+                self._group_by_and_replace(commodities, 'id_commodity', endpoint, replace_primary_key=primary_key)
             for commodity in commodities:
-                commodity_terminal_params = {'id_commodity': commodity['id'], 'id_terminal': commodity['id_terminal']}
+                commodity_terminal_params = {'id_commodity': commodity['id_commodity'],
+                                             'id_terminal': commodity['id_terminal']}
                 commodity_terminal_hash = hashlib.md5(str(commodity_terminal_params).encode('utf-8')).hexdigest()
-                self.cache.set(f"{endpoint}_{commodity_terminal_hash}", commodity)
+                self.cache.set(f"{endpoint}_{commodity_terminal_hash}", [commodity])
         return commodities
 
     async def _fetch_planets(self, params):
@@ -224,7 +236,7 @@ class API:
             for planet in planets:
                 planet_params = {'id_planet': planet['id']}
                 planet_hash = hashlib.md5(str(planet_params).encode('utf-8')).hexdigest()
-                self.cache.set(f"{endpoint}_{planet_hash}", planet)
+                self.cache.set(f"{endpoint}_{planet_hash}", [planet])
         return planets
 
     async def _fetch_terminals(self, params):
@@ -240,7 +252,7 @@ class API:
             for terminal in terminals:
                 terminal_params = {'id_terminal': terminal['id']}
                 terminal_hash = hashlib.md5(str(terminal_params).encode('utf-8')).hexdigest()
-                self.cache.set(f"{endpoint}_{terminal_hash}", terminal)
+                self.cache.set(f"{endpoint}_{terminal_hash}", [terminal])
         return terminals
 
     async def _fetch_systems(self, params=None):
@@ -250,12 +262,12 @@ class API:
             for system in systems:
                 system_params = {'id_star_system': system['id']}
                 system_hash = hashlib.md5(str(system_params).encode('utf-8')).hexdigest()
-                self.cache.set(f"{endpoint}_{system_hash}", system)
+                self.cache.set(f"{endpoint}_{system_hash}", [system])
         return systems
 
     async def _fetch_commodities_routes(self, params):
         endpoint = "/commodities_routes"
-        commodities_routes, cached = (await self._fetch_data(endpoint, params))
+        commodities_routes, cached = (await self._fetch_data(endpoint, params, ttl=planet_ttl))
         if not cached:
             if not params or len(params) == 0:
                 self._group_by_and_set(commodities_routes, 'id_terminal_origin', endpoint)
@@ -272,7 +284,7 @@ class API:
                                           'id_terminal_origin': commodity_route['id_terminal_origin'],
                                           'id_terminal_destination': commodity_route['id_terminal_destination']}
                 commodity_route_hash = hashlib.md5(str(commodity_route_params).encode('utf-8')).hexdigest()
-                self.cache.set(f"{endpoint}_{commodity_route_hash}", commodity_route)
+                self.cache.set(f"{endpoint}_{commodity_route_hash}", [commodity_route])
         return commodities_routes
 
     async def _filter_std_commodities(self, commodities):
@@ -298,6 +310,18 @@ class API:
         if id_commodity:
             params['id_commodity'] = id_commodity
         commodities = await self._fetch_commodities_prices(params)
+        return (await self._filter_std_commodities_prices(commodities))
+
+    async def fetch_all_commodities_prices(self):
+        endpoint = "/commodities_prices"
+        all_terminals = await self.fetch_all_terminals()
+        commodities = []
+        for terminal in all_terminals:
+            commodities.extend(await self.fetch_commodities_from_terminal(terminal['id']))
+        commodities_params = {}
+        commodities_hash = hashlib.md5(str(commodities_params).encode('utf-8')).hexdigest()
+        self.cache.set(f"{endpoint}_{commodities_hash}", commodities)
+        await self.regroup_all_commodities_prices_from_cache()
         return (await self._filter_std_commodities_prices(commodities))
 
     def _filter_std_planets(self, planets):
@@ -378,6 +402,21 @@ class API:
         """Performs a trade operation (buy/sell)."""
         # TODO - Check if data is formed properly considering user_trades_add endpoint
         return await self._post_data("/user_trades_add/", data)
+
+    async def fetch_all_routes(self):
+        endpoint = "/commodities_routes"
+        all_terminals = await self.fetch_all_terminals()
+        all_routes = []
+        for terminal_origin in all_terminals:
+            params = {
+                'id_terminal_origin': terminal_origin['id']
+            }
+            routes_from_origin = await self._fetch_commodities_routes(params)
+            for route in routes_from_origin:
+                params['id_terminal_destination'] = route['id_terminal_destination']
+                params_hash = hashlib.md5(str(params).encode('utf-8')).hexdigest()
+                self.cache.set(f"{endpoint}_{params_hash}", [route])
+            all_routes.extend(routes_from_origin)  # TODO - Store all routes in cache ?
 
     async def fetch_distance(self, id_terminal_origin, id_terminal_destination):
         params = {

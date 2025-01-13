@@ -156,7 +156,7 @@ class CacheManager:
                 del self.cache[key]
         return data
 
-    def set(self, key, data):
+    def set(self, key, data=[]):
         self.cache[key] = data
 
     def replace(self, key: str, new_data, ttl: int, primary_key=['id']):

@@ -11,6 +11,6 @@ submit_tab_activated = False
 persistent_cache_activated = True
 
 # hard-coded entities TTL
-system_ttl = 86400
-planet_ttl = 86400
-terminal_ttl = 43200
+system_ttl = 2419200  # Kept one month
+planet_ttl = 604800  # Kept one week
+terminal_ttl = 86400  # Kept one day
