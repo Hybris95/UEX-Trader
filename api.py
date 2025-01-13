@@ -8,6 +8,9 @@ import traceback
 import hashlib
 from itertools import groupby
 from operator import itemgetter
+from typing import List
+from commodity import Commodity
+from global_variables import persistent_cache_activated
 
 
 class API:
@@ -33,7 +36,10 @@ class API:
     def __init__(self, config_manager):
         if not hasattr(self, 'singleton'):  # Ensure __init__ is only called once
             self.config_manager = config_manager
-            self.cache = CacheManager()
+            if persistent_cache_activated:
+                self.cache = CacheManager(backend="persistent")
+            else:
+                self.cache = CacheManager(backend="local")
             self.session = None
             self.singleton = True
 
@@ -173,6 +179,16 @@ class API:
                 data_grouped_hash = hashlib.md5(str(data_grouped_params).encode('utf-8')).hexdigest()
                 self.cache.replace(f"{endpoint}_{data_grouped_hash}", data_grouped, primary_key)
 
+    async def _fetch_commodities(self, params):
+        endpoint = "/commodities"
+        commodities, cached = (await self._fetch_data(endpoint, params=params))
+        if not cached:
+            for commodity in commodities:
+                commodity_params = {'id_commodity', commodity['id']}
+                commodity_hash = hashlib.md5(str(commodity_params).encode('utf-8')).hexdigest()
+                self.cache.set(f"{endpoint}_{commodity_hash}", commodity)
+        return commodities
+
     async def _fetch_commodities_prices(self, params):
         endpoint = "/commodities_prices"
         commodities, cached = (await self._fetch_data(endpoint, params=params))
@@ -257,6 +273,14 @@ class API:
         return commodities_routes
 
     async def _filter_std_commodities(self, commodities):
+        return [commodity for commodity in commodities
+                if commodity.get("is_available", 0) == 1]
+
+    async def fetch_all_commodities(self):
+        commodities = await self._fetch_commodities({})
+        return (await self._filter_std_commodities(commodities))
+
+    async def _filter_std_commodities_prices(self, commodities):
         selected_version = await self.config_manager.get_version_value()
         return [commodity for commodity in commodities
                 if commodity.get("game_version", '0.0') == selected_version]
@@ -264,14 +288,14 @@ class API:
     async def fetch_commodities_by_id(self, id_commodity):
         params = {'id_commodity': id_commodity}
         commodities = await self._fetch_commodities_prices(params)
-        return (await self._filter_std_commodities(commodities))
+        return (await self._filter_std_commodities_prices(commodities))
 
     async def fetch_commodities_from_terminal(self, id_terminal, id_commodity=None):
         params = {'id_terminal': id_terminal}
         if id_commodity:
             params['id_commodity'] = id_commodity
         commodities = await self._fetch_commodities_prices(params)
-        return (await self._filter_std_commodities(commodities))
+        return (await self._filter_std_commodities_prices(commodities))
 
     def _filter_std_planets(self, planets):
         return [planet for planet in planets
@@ -349,3 +373,32 @@ class API:
             else:
                 return route["distance"]
         return 1
+
+    async def commodity_submit(self, id_commodity_terminal: int, commodities: List[Commodity], details: str):
+        # TODO - Check if id_commodity_terminal exists as a commodity terminal
+
+        if not isinstance(commodities, list):
+            raise TypeError("commodities must be a list")
+
+        logger = self.get_logger()
+        data = {
+            "id_terminal": id_commodity_terminal,
+            "type": "commodity",
+            "prices": [],
+            "details": details,
+            "game_version": await self.config_manager.get_version_value()
+        }
+        for commodity in commodities:
+            if not isinstance(commodity, Commodity):
+                raise TypeError("All elements in commodities must be instances of Commodity")
+            price = {
+                "id_commodity": commodity.id,
+                commodity.get_price_property(): commodity.price,
+                "is_missing": commodity.missing,
+                commodity.get_scu_property(): commodity.scu,
+                commodity.get_status_property(): commodity.status
+            }
+            data['prices'].append(price)
+
+        logger.debug(f"Submitting commodities to terminal {id_commodity_terminal}")
+        return await self._post_data("/data_submit/", data)
