@@ -164,21 +164,23 @@ class API:
             if self.config_manager.get_debug():
                 logging.debug(traceback.format_exc())
 
-    def _group_by_and_set(self, data, param: str, endpoint: str):
-        grouped_data_by_param = self._group_by(data, param)
+    def _group_by_and_set(self, data, group_param: str, endpoint: str):
+        grouped_data_by_param = self._group_by(data, group_param)
         for data_grouped in grouped_data_by_param:
             if len(data_grouped) > 0:
-                data_grouped_params = {param: data_grouped[0][param]}
+                data_grouped_params = {group_param: data_grouped[0][group_param]}
                 data_grouped_hash = hashlib.md5(str(data_grouped_params).encode('utf-8')).hexdigest()
                 self.cache.set(f"{endpoint}_{data_grouped_hash}", data_grouped)
 
-    def _group_by_and_replace(self, data, param: str, endpoint: str, primary_key=['id']):
-        grouped_data_by_param = self._group_by(data, param)
+    def _group_by_and_replace(self, data, group_param: str, endpoint: str, ttl=None, replace_primary_key=['id']):
+        grouped_data_by_param = self._group_by(data, group_param)
+        if not ttl:
+            ttl = int(self.config_manager.get_ttl())
         for data_grouped in grouped_data_by_param:
             if len(data_grouped) > 0:
-                data_grouped_params = {param: data_grouped[0][param]}
+                data_grouped_params = {group_param: data_grouped[0][group_param]}
                 data_grouped_hash = hashlib.md5(str(data_grouped_params).encode('utf-8')).hexdigest()
-                self.cache.replace(f"{endpoint}_{data_grouped_hash}", data_grouped, primary_key)
+                self.cache.replace(f"{endpoint}_{data_grouped_hash}", data_grouped, ttl, replace_primary_key)
 
     async def _fetch_commodities(self, params):
         endpoint = "/commodities"
@@ -199,8 +201,8 @@ class API:
                 self._group_by_and_set(commodities, 'id', endpoint)
             else:
                 primary_key = ['id_commodity', 'id_terminal']
-                self._group_by_and_replace(commodities, 'id_terminal', endpoint, primary_key)
-                self._group_by_and_replace(commodities, 'id', endpoint, primary_key)
+                self._group_by_and_replace(commodities, 'id_terminal', endpoint, replace_primary_key=primary_key)
+                self._group_by_and_replace(commodities, 'id', endpoint, replace_primary_key=primary_key)
             for commodity in commodities:
                 commodity_terminal_params = {'id_commodity': commodity['id'], 'id_terminal': commodity['id_terminal']}
                 commodity_terminal_hash = hashlib.md5(str(commodity_terminal_params).encode('utf-8')).hexdigest()
@@ -216,9 +218,9 @@ class API:
                 self._group_by_and_set(planets, 'id_faction', endpoint)
                 self._group_by_and_set(planets, 'id_jurisdiction', endpoint)
             else:
-                self._group_by_and_replace(planets, 'id_star_system', endpoint)
-                self._group_by_and_replace(planets, 'id_faction', endpoint)
-                self._group_by_and_replace(planets, 'id_jurisdiction', endpoint)
+                self._group_by_and_replace(planets, 'id_star_system', endpoint, ttl=planet_ttl)
+                self._group_by_and_replace(planets, 'id_faction', endpoint, ttl=planet_ttl)
+                self._group_by_and_replace(planets, 'id_jurisdiction', endpoint, ttl=planet_ttl)
             for planet in planets:
                 planet_params = {'id_planet': planet['id']}
                 planet_hash = hashlib.md5(str(planet_params).encode('utf-8')).hexdigest()
@@ -233,8 +235,8 @@ class API:
                 self._group_by_and_set(terminals, 'id_star_system', endpoint)
                 self._group_by_and_set(terminals, 'id_planet', endpoint)
             else:
-                self._group_by_and_replace(terminals, 'id_star_system', endpoint)
-                self._group_by_and_replace(terminals, 'id_planet', endpoint)
+                self._group_by_and_replace(terminals, 'id_star_system', endpoint, ttl=terminal_ttl)
+                self._group_by_and_replace(terminals, 'id_planet', endpoint, ttl=terminal_ttl)
             for terminal in terminals:
                 terminal_params = {'id_terminal': terminal['id']}
                 terminal_hash = hashlib.md5(str(terminal_params).encode('utf-8')).hexdigest()
