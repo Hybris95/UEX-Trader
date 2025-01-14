@@ -7,7 +7,7 @@ from global_variables import app_name, metrics_db_file
 import os
 import asyncio
 from global_variables import metrics_collect_activated
-
+from qasync import QEventLoop
 
 class Metrics:
     _instance = None
@@ -44,12 +44,36 @@ class Metrics:
             self.c.execute('''CREATE TABLE IF NOT EXISTS api_calls
                              (endpoint TEXT, params TEXT, cache_hit INTEGER, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
             self.conn.commit()
+            self.fnc_exec_buffer = []
+            self.api_calls_buffer = []
+            self.batch_size = 100  # Number of records to batch insert
+            self.batch_interval = 5  # Time interval in seconds to perform batch insert
             self.singleton = True
+            loop = QEventLoop()
+            asyncio.set_event_loop(loop)
+            loop.create_task(self.batch_insert_task())
 
     async def initialize(self):
         async with self._lock:
             if not self._initialized.is_set():
                 self._initialized.set()
+
+    async def batch_insert_task(self):
+        while True:
+            await asyncio.sleep(self.batch_interval)
+            await self.perform_batch_insert()
+
+    async def perform_batch_insert(self):
+        async with self._lock:
+            if self.fnc_exec_buffer:
+                self.c.executemany("INSERT INTO fnc_exec (module_name, function_name, execution_time) VALUES (?, ?, ?)",
+                                   self.fnc_exec_buffer)
+                self.fnc_exec_buffer.clear()
+            if self.api_calls_buffer:
+                self.c.executemany("INSERT INTO api_calls (endpoint, params, cache_hit) VALUES (?, ?, ?)",
+                                   self.api_calls_buffer)
+                self.api_calls_buffer.clear()
+            self.conn.commit()
 
     @classmethod
     def track_sync_fnc_exec(cls, func):
@@ -61,8 +85,9 @@ class Metrics:
             if metrics_collect_activated:
                 end_time = time.time()
                 execution_time = end_time - start_time
-                instance.c.execute("INSERT INTO fnc_exec (module_name, function_name, execution_time) VALUES (?, ?, ?)",
-                                   (func.__module__, func.__name__, execution_time))
+                instance.fnc_exec_buffer.append((func.__module__, func.__name__, execution_time))
+                if len(instance.fnc_exec_buffer) >= instance.batch_size:
+                    asyncio.create_task(instance.perform_batch_insert())
             return result
         return wrapper
 
@@ -76,15 +101,17 @@ class Metrics:
             if metrics_collect_activated:
                 end_time = time.time()
                 execution_time = end_time - start_time
-                instance.c.execute("INSERT INTO fnc_exec (module_name, function_name, execution_time) VALUES (?, ?, ?)",
-                                   (func.__module__, func.__name__, execution_time))
+                instance.fnc_exec_buffer.append((func.__module__, func.__name__, execution_time))
+                if len(instance.fnc_exec_buffer) >= instance.batch_size:
+                    await instance.perform_batch_insert()
             return result
         return wrapper
 
     def track_api_call(self, endpoint: str, params: dict, cache_hit: bool):
         if metrics_collect_activated:
-            self.c.execute("INSERT INTO api_calls (endpoint, params, cache_hit) VALUES (?, ?, ?)",
-                           (endpoint, str(params), 1 if cache_hit else 0))
+            self.api_calls_buffer.append((endpoint, str(params), 1 if cache_hit else 0))
+            if len(self.api_calls_buffer) >= self.batch_size:
+                asyncio.create_task(self.perform_batch_insert())
 
     def fetch_fnc_exec(self):
         self.c.execute('''SELECT module_name, function_name, COUNT(1) as nb_exec,
@@ -111,4 +138,5 @@ class Metrics:
         self.conn.commit()
 
     def close(self):
+        asyncio.create_task(self.perform_batch_insert())  # Ensure all buffered data is written before closing
         self.conn.close()
