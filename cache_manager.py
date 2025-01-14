@@ -5,7 +5,7 @@ import os
 import sqlite3
 import time
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from platformdirs import user_data_dir
 from global_variables import app_name, cache_db_file
 
@@ -46,20 +46,30 @@ class DictCacheBackend:
     def clear(self):
         self.__cache.clear()
 
+    def clean_obsolete(self, ttl: int):
+        obsolete_ts = time.time() - ttl
+        to_remove = []
+        for key in self.__cache:
+            value = self.__cache[key]
+            if value['timestamp'] < obsolete_ts:
+                to_remove.append(key)
+        for remove_key in to_remove:
+            del self.__cache[remove_key]
+
     def __getitem__(self, key):
         return self.__cache.get(key, None)
 
-    def __setitem__(self, name, value):
-        self.__cache[name] = {
+    def __setitem__(self, key, value):
+        self.__cache[key] = {
             'data': value,
             'timestamp': time.time()
         }
 
-    def __delitem__(self, name):
-        del self.__cache[name]
+    def __delitem__(self, key):
+        del self.__cache[key]
 
-    def __contains__(self, name):
-        return name in self.__cache
+    def __contains__(self, key):
+        return key in self.__cache
 
 
 class SQLiteCacheBackend:
@@ -93,6 +103,20 @@ class SQLiteCacheBackend:
     def clear(self):
         cur = self.con.cursor()
         cur.execute("DELETE FROM cache;")
+        self.con.commit()
+        cur.close()
+
+    def clean_obsolete(self, ttl: int):
+        # Calculate the threshold timestamp
+        threshold_time = datetime.now() - timedelta(seconds=ttl)
+        threshold_time_iso = threshold_time.isoformat()
+
+        # Execute the DELETE statement
+        cur = self.con.cursor()
+        cur.execute("""
+            DELETE FROM cache
+            WHERE timestamp < ?;
+        """, [threshold_time_iso])
         self.con.commit()
         cur.close()
 
@@ -185,6 +209,9 @@ class CacheManager:
     def invalidate(self, key):
         if key in self.cache:
             del self.cache[key]
+
+    def clean_obsolete(self, ttl: int):
+        self.cache.clean_obsolete(ttl)
 
     def clear(self):
         self.cache.clear()

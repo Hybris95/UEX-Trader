@@ -15,6 +15,9 @@ import asyncio
 from tools import translate
 from global_variables import trade_tab_activated, trade_route_tab_activated
 from global_variables import best_trade_route_tab_activated, submit_tab_activated
+from global_variables import load_systems_activated, load_planets_activated, load_terminals_activated
+from global_variables import load_commodities_prices_activated, load_commodities_routes_activated
+from global_variables import remove_obsolete_keys_activated
 
 
 class SplashScreen(QSplashScreen):
@@ -46,41 +49,54 @@ class UexcorpTrader(QWidget):
         self.api = None
         self.show_qmessagebox = show_qmessagebox
 
+    def _update_splash(self, value, message):
+        def update():
+            if self.splash:
+                self.splash.update_progress(value, message)
+                QApplication.processEvents()
+        self.loop.call_soon_threadsafe(update)
+
     async def initialize(self):
         async with self._lock:
             if self.config_manager is None or self.translation_manager is None or self.api is None:
-                splash = SplashScreen()
-                splash.show()
-
-                def update_splash(value, message):
-                    def update():
-                        splash.update_progress(value, message)
-                        QApplication.processEvents()
-                    self.loop.call_soon_threadsafe(update)
+                self.splash = SplashScreen()
+                self.splash.show()
 
                 async def init_tasks():
-                    update_splash(0, "Initializing Config Manager...")
+                    self._update_splash(0, "Initializing Config Manager...")
                     self.config_manager = await ConfigManager.get_instance()
-                    update_splash(1, "Initializing Translation Manager...")
+                    self._update_splash(1, "Initializing Translation Manager...")
                     self.translation_manager = await TranslationManager.get_instance()
-                    update_splash(2, "Initializing API...")
+                    self._update_splash(2, "Initializing API...")
                     self.api = await API.get_instance(self.config_manager)
-                    update_splash(3, "Initializing API Cache - Systems...")
-                    await self.api.fetch_all_systems()
-                    update_splash(5, "Initializing API Cache - Planets...")
-                    await self.api.fetch_planets()
-                    update_splash(8, "Initializing API Cache - Terminals...")
-                    await self.api.fetch_all_terminals()
-                    update_splash(12, "Initializing API Cache - Commodities...")
-                    await self.api.fetch_all_commodities_prices()
-                    update_splash(55, "Initializing API Cache - Distances (Once per week)...")
-                    await self.api.fetch_all_routes()
-                    update_splash(98, "Initializing UI...")
+                    await load_cache()  # Load Cache and detail
+                    self._update_splash(98, "Initializing UI...")
                     await self.init_ui()
-                    update_splash(99, "Applying Appearance Mode...")
+                    self._update_splash(99, "Applying Appearance Mode...")
                     await self.apply_appearance_mode(self.config_manager.get_appearance_mode())
-                    update_splash(100, "Initialization Complete!")
-                    QTimer.singleShot(1000, splash.close)  # Close splash after 1 second
+                    self._update_splash(100, "Initialization Complete!")
+                    QTimer.singleShot(1000, self.splash.close)  # Close splash after 1 second
+
+                async def load_cache():
+                    if remove_obsolete_keys_activated:
+                        self._update_splash(3, "Removing obsolete cache keys")
+                        await self.api.clean_cache()
+                    if load_systems_activated:
+                        self._update_splash(10, "Initializing API Cache - Systems...")
+                        await self.api.fetch_all_systems()
+                    if load_planets_activated:
+                        self._update_splash(11, "Initializing API Cache - Planets...")
+                        await self.api.fetch_planets()
+                    if load_terminals_activated:
+                        self._update_splash(13, "Initializing API Cache - Terminals...")
+                        await self.api.fetch_all_terminals()
+                    if load_commodities_prices_activated:
+                        self._update_splash(15, "Initializing API Cache - Commodities...")
+                        await self.api.fetch_all_commodities_prices()
+                    if load_commodities_routes_activated:
+                        self._update_splash(55, "Initializing API Cache - Distances (Once per week)...")
+                        await self.api.fetch_all_routes()
+
                 await asyncio.gather(init_tasks())
                 self._initialized.set()
 
