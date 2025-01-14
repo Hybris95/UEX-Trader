@@ -12,7 +12,7 @@ from typing import List
 from commodity import Commodity
 from global_variables import persistent_cache_activated
 from global_variables import system_ttl, planet_ttl, terminal_ttl
-from metrics import track_api_calls
+from metrics import Metrics
 
 
 class API:
@@ -44,6 +44,7 @@ class API:
                 self.cache = CacheManager(backend="local")
             self.session = None
             self.singleton = True
+            self.metrics = Metrics()  # Instantiate the Metrics class
 
     async def initialize(self):
         async with self._lock:
@@ -89,8 +90,10 @@ class API:
         logger = self.get_logger()
         if cached_data:
             logger.debug(f"Cache hit for {cache_key}")
+            self.metrics.track_api_call(endpoint, params, cache_hit=True)
             return cached_data, True
         else:
+            self.metrics.track_api_call(endpoint, params, cache_hit=False)
             logger.debug(f"Cache miss for {cache_key}")
         url = f"{await self.get_api_base_url()}{endpoint}"
         logger.debug(f"API Request: GET {url} {params if params else ''}")
@@ -183,7 +186,6 @@ class API:
                 data_grouped_hash = hashlib.md5(str(data_grouped_params).encode('utf-8')).hexdigest()
                 self.cache.replace(f"{endpoint}_{data_grouped_hash}", data_grouped, ttl, replace_primary_key)
 
-    @track_api_calls("/commodities")
     async def _fetch_commodities(self, params):
         endpoint = "/commodities"
         commodities, cached = (await self._fetch_data(endpoint, params=params))
@@ -205,7 +207,6 @@ class API:
             self._group_by_and_set(commodities, 'id_terminal', endpoint)
             self._group_by_and_set(commodities, 'id_commodity', endpoint)
 
-    @track_api_calls("/commodities_prices")
     async def _fetch_commodities_prices(self, params):
         endpoint = "/commodities_prices"
         commodities, cached = (await self._fetch_data(endpoint, params=params))
@@ -224,7 +225,6 @@ class API:
                 self.cache.set(f"{endpoint}_{commodity_terminal_hash}", [commodity])
         return commodities
 
-    @track_api_calls("/planets")
     async def _fetch_planets(self, params):
         endpoint = "/planets"
         planets, cached = (await self._fetch_data(endpoint, params=params, ttl=planet_ttl))
@@ -243,7 +243,6 @@ class API:
                 self.cache.set(f"{endpoint}_{planet_hash}", [planet])
         return planets
 
-    @track_api_calls("/terminals")
     async def _fetch_terminals(self, params):
         endpoint = "/terminals"
         terminals, cached = (await self._fetch_data(endpoint, params=params, ttl=terminal_ttl))
@@ -260,7 +259,6 @@ class API:
                 self.cache.set(f"{endpoint}_{terminal_hash}", [terminal])
         return terminals
 
-    @track_api_calls("/star_systems")
     async def _fetch_systems(self, params=None):
         endpoint = "/star_systems"
         systems, cached = (await self._fetch_data(endpoint, params, ttl=system_ttl))
@@ -271,7 +269,6 @@ class API:
                 self.cache.set(f"{endpoint}_{system_hash}", [system])
         return systems
 
-    @track_api_calls("/commodities_routes")
     async def _fetch_commodities_routes(self, params):
         endpoint = "/commodities_routes"
         commodities_routes, cached = (await self._fetch_data(endpoint, params, ttl=planet_ttl))
@@ -403,7 +400,9 @@ class API:
                 if system.get("id") == system_id]
 
     async def fetch_versions(self):
-        return (await self._fetch_data("/game_versions", data_only=False))[0].get("data", {})
+        endpoint = "/game_versions"
+        game_versions, cached = await self._fetch_data(endpoint, data_only=False)
+        return game_versions.get("data", {})
 
     async def perform_trade(self, data):
         """Performs a trade operation (buy/sell)."""
