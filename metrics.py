@@ -34,8 +34,10 @@ class Metrics:
             # Initialize SQLite database
             db_dir = user_data_dir(app_name, ensure_exists=True)
             db_path = os.path.join(db_dir, metrics_db_file)
-            self.conn = sqlite3.connect(db_path)
+            self.conn = sqlite3.connect(db_path, isolation_level=None)  # Use autocommit mode
             self.c = self.conn.cursor()
+            self.c.execute('PRAGMA journal_mode=WAL')  # Enable WAL mode
+            self.c.execute('PRAGMA synchronous=NORMAL')  # Set synchronous mode to NORMAL for a balance between performance and integrity
             self.c.execute('''CREATE TABLE IF NOT EXISTS fnc_exec
                              (module_name TEXT, function_name TEXT, execution_time REAL,
                               timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
@@ -61,7 +63,6 @@ class Metrics:
                 execution_time = end_time - start_time
                 instance.c.execute("INSERT INTO fnc_exec (module_name, function_name, execution_time) VALUES (?, ?, ?)",
                                    (func.__module__, func.__name__, execution_time))
-                instance.conn.commit()
             return result
         return wrapper
 
@@ -77,7 +78,6 @@ class Metrics:
                 execution_time = end_time - start_time
                 instance.c.execute("INSERT INTO fnc_exec (module_name, function_name, execution_time) VALUES (?, ?, ?)",
                                    (func.__module__, func.__name__, execution_time))
-                instance.conn.commit()
             return result
         return wrapper
 
@@ -85,7 +85,6 @@ class Metrics:
         if metrics_collect_activated:
             self.c.execute("INSERT INTO api_calls (endpoint, params, cache_hit) VALUES (?, ?, ?)",
                            (endpoint, str(params), 1 if cache_hit else 0))
-            self.conn.commit()
 
     def fetch_fnc_exec(self):
         self.c.execute('''SELECT module_name, function_name, COUNT(1) as nb_exec,
