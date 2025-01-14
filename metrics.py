@@ -48,12 +48,13 @@ class Metrics:
             self.conn.commit()
             self.fnc_exec_buffer = []
             self.api_calls_buffer = []
-            self.batch_size = 100  # Number of records to batch insert
+            self.batch_size = 1000  # Number of records to batch insert
             self.batch_interval = 5  # Time interval in seconds to perform batch insert
             self.singleton = True
-            loop = QEventLoop()
-            asyncio.set_event_loop(loop)
-            loop.create_task(self.batch_insert_task())
+            if metrics_collect_activated:
+                loop = QEventLoop()
+                asyncio.set_event_loop(loop)
+                loop.create_task(self.batch_insert_task())
 
     async def initialize(self):
         async with self._lock:
@@ -61,21 +62,22 @@ class Metrics:
                 self._initialized.set()
 
     async def batch_insert_task(self):
-        while True:
+        while metrics_collect_activated:
             await asyncio.sleep(self.batch_interval)
             await self.perform_batch_insert()
 
     async def perform_batch_insert(self):
         async with self._lock:
-            if self.fnc_exec_buffer:
-                self.c.executemany("INSERT INTO fnc_exec (module_name, function_name, execution_time) VALUES (?, ?, ?)",
-                                   self.fnc_exec_buffer)
-                self.fnc_exec_buffer.clear()
-            if self.api_calls_buffer:
-                self.c.executemany("INSERT INTO api_calls (endpoint, params, cache_hit) VALUES (?, ?, ?)",
-                                   self.api_calls_buffer)
-                self.api_calls_buffer.clear()
-            self.conn.commit()
+            if metrics_collect_activated:
+                if self.fnc_exec_buffer:
+                    self.c.executemany("INSERT INTO fnc_exec (module_name, function_name, execution_time) VALUES (?, ?, ?)",
+                                       self.fnc_exec_buffer)
+                    self.fnc_exec_buffer.clear()
+                if self.api_calls_buffer:
+                    self.c.executemany("INSERT INTO api_calls (endpoint, params, cache_hit) VALUES (?, ?, ?)",
+                                       self.api_calls_buffer)
+                    self.api_calls_buffer.clear()
+                self.conn.commit()
 
     @staticmethod
     def track_sync_fnc_exec(func):
