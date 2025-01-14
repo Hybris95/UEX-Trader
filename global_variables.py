@@ -9,8 +9,8 @@ trade_tab_activated = True
 trade_route_tab_activated = True
 best_trade_route_tab_activated = True
 submit_tab_activated = False
-metrics_tab_activated = True  # DEBUG - Used for developers (TODO - use get_debug from config ??)
-metrics_collect_activated = True  # DEBUG - Used for developers (TODO - use get_debug from config ??)
+metrics_tab_activated = False  # DEBUG - Used for developers (TODO - use get_debug from config ??)
+metrics_collect_activated = False  # DEBUG - Used for developers (TODO - use get_debug from config ??)
 persistent_cache_activated = True
 
 # Startup Features
