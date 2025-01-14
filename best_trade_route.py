@@ -14,6 +14,7 @@ from trade_tab import TradeTab
 from translation_manager import TranslationManager
 from tools import create_async_callback, days_difference_from_now, translate
 import traceback
+from metrics import Metrics
 
 
 class BestTradeRouteTab(QWidget):
@@ -32,6 +33,7 @@ class BestTradeRouteTab(QWidget):
         self.current_trades = []
         asyncio.ensure_future(self.load_systems())
 
+    @Metrics.track_async_fnc_exec
     async def initialize(self):
         async with self._lock:
             if self.config_manager is None or self.translation_manager is None or self.api is None or self.columns is None:
@@ -66,11 +68,13 @@ class BestTradeRouteTab(QWidget):
         await self.ensure_initialized()
         return self
 
+    @Metrics.track_async_fnc_exec
     async def prep_max_scu(self):
         self.max_scu_input = QLineEdit()
         self.max_scu_input.setPlaceholderText(await translate("enter") + " " + await translate("maximum")
                                               + " " + await translate("scu"))
 
+    @Metrics.track_async_fnc_exec
     async def prep_max_investment(self):
         self.max_investment_input = QLineEdit()
         self.max_investment_input.setPlaceholderText(await translate("enter")
@@ -78,12 +82,14 @@ class BestTradeRouteTab(QWidget):
                                                      + await translate("maximum") + " " + await translate("investment")
                                                      + " (" + await translate("uec") + ")")
 
+    @Metrics.track_async_fnc_exec
     async def prep_max_outdated(self):
         self.max_outdated_input = QLineEdit()
         self.max_outdated_input.setPlaceholderText(
             await translate("enter") + " " + await translate("maximum") + " " + await translate("outdated")
             + " (" + await translate("days") + ")")
 
+    @Metrics.track_async_fnc_exec
     async def prep_min_trade_profit(self):
         self.min_trade_profit_input = QLineEdit()
         self.min_trade_profit_input.setPlaceholderText(
@@ -91,16 +97,19 @@ class BestTradeRouteTab(QWidget):
             + " (" + await translate("uec") + ")")
         self.min_trade_profit_input.setText("8000")
 
+    @Metrics.track_async_fnc_exec
     async def prep_departure_system(self):
         self.departure_system_combo = QComboBox()
         self.departure_system_combo.currentIndexChanged.connect(
             lambda: asyncio.ensure_future(self.update_departure_planets())
         )
 
+    @Metrics.track_async_fnc_exec
     async def prep_departure_planet(self):
         self.departure_planet_combo = QComboBox()
         self.departure_planet_combo.addItem(await translate("all_planets"), "all_planets")
 
+    @Metrics.track_async_fnc_exec
     async def prep_destination_system(self):
         self.destination_system_combo = QComboBox()
         self.destination_system_combo.currentIndexChanged.connect(
@@ -108,22 +117,27 @@ class BestTradeRouteTab(QWidget):
         )
         self.destination_system_combo.addItem(await translate("all_systems"), "all_systems")
 
+    @Metrics.track_async_fnc_exec
     async def prep_destination_planet(self):
         self.destination_planet_combo = QComboBox()
         self.destination_planet_combo.addItem(await translate("all_planets"), "all_planets")
 
+    @Metrics.track_async_fnc_exec
     async def prep_find_route_rework(self):
         self.find_route_button_rework = QPushButton(await translate("find_best_trade_routes"))
         self.find_route_button_rework.clicked.connect(lambda: asyncio.ensure_future(self.find_best_trade_routes_rework()))
 
+    @Metrics.track_async_fnc_exec
     async def prep_main_progress(self):
         self.main_progress_bar = QProgressBar()
         self.main_progress_bar.setVisible(False)
 
+    @Metrics.track_async_fnc_exec
     async def prep_progress(self):
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
 
+    @Metrics.track_async_fnc_exec
     async def prep_page_items(self):
         self.page_items_combo = QComboBox()
         self.page_items_combo.addItem("10 " + await translate("maximum_results"), 10)
@@ -137,6 +151,7 @@ class BestTradeRouteTab(QWidget):
             lambda: asyncio.ensure_future(self.update_page_items())
         )
 
+    @Metrics.track_async_fnc_exec
     async def prep_sorting_options(self):
         self.sorting_options_combo = QComboBox()
         self.sorting_options_combo.addItem(await translate("sort_trade_margin")
@@ -162,6 +177,7 @@ class BestTradeRouteTab(QWidget):
             lambda: asyncio.ensure_future(self.update_page_items())
         )
 
+    @Metrics.track_async_fnc_exec
     async def prep_sorting_order(self):
         self.sorting_order_combo = QComboBox()
         self.sorting_order_combo.addItem(await translate("sort_descending"), "DESC")
@@ -171,6 +187,7 @@ class BestTradeRouteTab(QWidget):
             lambda: asyncio.ensure_future(self.update_page_items())
         )
 
+    @Metrics.track_async_fnc_exec
     async def prep_ui(self):
         await self.prep_max_scu()
         await self.prep_max_investment()
@@ -187,6 +204,7 @@ class BestTradeRouteTab(QWidget):
         await self.prep_sorting_options()
         await self.prep_sorting_order()
 
+    @Metrics.track_async_fnc_exec
     async def add_widgets(self, layout):
         layout.addWidget(QLabel(await translate("maximum") + " " + await translate("scu") + ":"))
         layout.addWidget(self.max_scu_input)
@@ -224,12 +242,14 @@ class BestTradeRouteTab(QWidget):
         self.trade_route_table = QTableWidget()
         layout.addWidget(self.trade_route_table)
 
+    @Metrics.track_async_fnc_exec
     async def init_ui(self):
         await self.prep_ui()
         layout = QVBoxLayout()
         await self.add_widgets(layout)
         self.setLayout(layout)
 
+    @Metrics.track_async_fnc_exec
     async def load_systems(self):
         try:
             await self.ensure_initialized()
@@ -253,6 +273,7 @@ class BestTradeRouteTab(QWidget):
             self.departure_system_combo.blockSignals(False)
             self.destination_system_combo.blockSignals(False)
 
+    @Metrics.track_async_fnc_exec
     async def update_departure_planets(self):
         await self.ensure_initialized()
         self.departure_planet_combo.clear()
@@ -275,6 +296,7 @@ class BestTradeRouteTab(QWidget):
                                              await translate("error_failed_to_load_departure_planets") + f": {e}",
                                              QMessageBox.Icon.Critical)
 
+    @Metrics.track_async_fnc_exec
     async def update_destination_planets(self):
         await self.ensure_initialized()
         self.destination_planet_combo.clear()
@@ -300,10 +322,12 @@ class BestTradeRouteTab(QWidget):
                                              await translate("error_failed_to_load_destination_planets") + f": {e}",
                                              QMessageBox.Icon.Critical)
 
+    @Metrics.track_async_fnc_exec
     async def update_page_items(self):
         await self.ensure_initialized()
         await self.display_trade_routes(self.current_trades, self.columns, quick=False)
 
+    @Metrics.track_async_fnc_exec
     async def get_planets_from_single_ids(self, system_id, planet_id):
         planets = []
         if planet_id == "all_planets":
@@ -312,6 +336,7 @@ class BestTradeRouteTab(QWidget):
             planets = await self.api.fetch_planets(system_id, planet_id)
         return planets
 
+    @Metrics.track_async_fnc_exec
     async def find_best_trade_routes_rework(self):
         await self.ensure_initialized()
         self.logger.log(logging.INFO, "Searching for Best Trade Routes")
@@ -434,6 +459,7 @@ class BestTradeRouteTab(QWidget):
             self.progress_bar.setVisible(False)
             self.main_progress_bar.setVisible(False)
 
+    @Metrics.track_async_fnc_exec
     async def get_input_values(self):
         if not re.match(r'^\d+$', self.max_scu_input.text()) and self.max_scu_input.text() != "":
             raise ValueError(await translate("scu") + " " + await translate("error_input_invalid_integer"))
@@ -450,6 +476,7 @@ class BestTradeRouteTab(QWidget):
         min_trade_profit = int(self.min_trade_profit_input.text()) if self.min_trade_profit_input.text() else 0
         return max_scu, max_investment, max_outdated_in_days, min_trade_profit
 
+    @Metrics.track_async_fnc_exec
     async def get_selected_ids(self):
         departure_system_id = self.departure_system_combo.currentData()
         departure_planet_id = self.departure_planet_combo.currentData()
@@ -461,6 +488,7 @@ class BestTradeRouteTab(QWidget):
             raise ValueError(await translate("error_input_select_ds"))
         return departure_system_id, departure_planet_id, destination_system_id, destination_planet_id
 
+    @Metrics.track_async_fnc_exec
     async def get_terminals_from_planets(self, filtering_planets,
                                          filter_public_hangars=False,
                                          filter_space_only=False,
@@ -499,6 +527,7 @@ class BestTradeRouteTab(QWidget):
                 terminals.append(terminal)
         return terminals
 
+    @Metrics.track_async_fnc_exec
     async def get_buy_commodities_from_terminals(self, departure_terminals):
         await self.ensure_initialized()
         buy_commodities = []
@@ -518,6 +547,7 @@ class BestTradeRouteTab(QWidget):
         self.logger.info("%s Buy Commodities found.", len(buy_commodities))
         return buy_commodities
 
+    @Metrics.track_sync_fnc_exec
     def append_unfiltered_commodity(self, unfiltered_commodity, sell_commodities,
                                     destination_planets, destination_systems):
         if len(destination_planets) == 0:
@@ -532,6 +562,7 @@ class BestTradeRouteTab(QWidget):
                          or (unfiltered_commodity["id_planet"] == destination_planet["id"]))):
                     sell_commodities.append(unfiltered_commodity)
 
+    @Metrics.track_async_fnc_exec
     async def get_sell_commodities_from_commodities_prices(self,
                                                            buy_commodities,
                                                            destination_planets,
@@ -572,6 +603,7 @@ class BestTradeRouteTab(QWidget):
         self.logger.info("%s Sell Commodities found.", len(sell_commodities))
         return sell_commodities
 
+    @Metrics.track_async_fnc_exec
     async def calculate_trade_routes_rework(self, buy_commodities, sell_commodities, ignore_stocks, ignore_demand):
         await self.ensure_initialized()
         # [Calculate trade routes]
@@ -602,6 +634,7 @@ class BestTradeRouteTab(QWidget):
         QApplication.processEvents()
         return trade_routes
 
+    @Metrics.track_async_fnc_exec
     async def check_validity(self, buy_commodity, sell_commodity):
         if buy_commodity["id_commodity"] != sell_commodity["id_commodity"]:
             return False
@@ -636,6 +669,7 @@ class BestTradeRouteTab(QWidget):
             return False
         return True
 
+    @Metrics.track_async_fnc_exec
     async def get_max_buyable_scu(self, ignore_stocks, ignore_demand,
                                   sell_commodity, buy_commodity):
         scu_sell_stock = sell_commodity.get("scu_sell_stock", 0)
@@ -654,6 +688,7 @@ class BestTradeRouteTab(QWidget):
             return 0
         return min(max_scu, available_scu, int(max_investment // price_buy), demand_scu)
 
+    @Metrics.track_async_fnc_exec
     async def process_single_trade_route(self, buy_commodity, sell_commodity,
                                          ignore_stocks=False, ignore_demand=False):
         await self.ensure_initialized()
@@ -722,6 +757,7 @@ class BestTradeRouteTab(QWidget):
         }
         return route
 
+    @Metrics.track_async_fnc_exec
     async def display_trade_routes(self, trade_routes, columns, quick=True):
         await self.ensure_initialized()
         nb_items = 5 if quick else self.page_items_combo.currentData()
@@ -741,6 +777,7 @@ class BestTradeRouteTab(QWidget):
         # Resize columns to fit contents
         self.trade_route_table.resizeColumnsToContents()
 
+    @Metrics.track_async_fnc_exec
     async def add_action_buttons(self, i, j, trade_route):
         await self.ensure_initialized()
         action_layout = QHBoxLayout()
@@ -754,6 +791,7 @@ class BestTradeRouteTab(QWidget):
         action_widget.setLayout(action_layout)
         self.trade_route_table.setCellWidget(i, j, action_widget)
 
+    @Metrics.track_async_fnc_exec
     async def select_to_buy(self, trade_route):
         await self.ensure_initialized()
         self.logger.log(logging.INFO, "Selected route to buy")
@@ -766,6 +804,7 @@ class BestTradeRouteTab(QWidget):
                                              await translate("error_generic"),
                                              QMessageBox.Icon.Critical)
 
+    @Metrics.track_async_fnc_exec
     async def select_to_sell(self, trade_route):
         await self.ensure_initialized()
         self.logger.log(logging.INFO, "Selected route to sell")
@@ -778,6 +817,7 @@ class BestTradeRouteTab(QWidget):
                                              await translate("error_generic"),
                                              QMessageBox.Icon.Critical)
 
+    @Metrics.track_sync_fnc_exec
     def set_gui_enabled(self, enabled):
         for lineedit in self.findChildren(QLineEdit):
             lineedit.setEnabled(enabled)
