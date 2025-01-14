@@ -9,6 +9,7 @@ import asyncio
 from global_variables import metrics_collect_activated
 from qasync import QEventLoop
 
+
 class Metrics:
     _instance = None
     _lock = asyncio.Lock()
@@ -37,7 +38,8 @@ class Metrics:
             self.conn = sqlite3.connect(db_path, isolation_level=None)  # Use autocommit mode
             self.c = self.conn.cursor()
             self.c.execute('PRAGMA journal_mode=WAL')  # Enable WAL mode
-            self.c.execute('PRAGMA synchronous=NORMAL')  # Set synchronous mode to NORMAL for a balance between performance and integrity
+            # Set synchronous mode to NORMAL for a balance between performance and integrity
+            self.c.execute('PRAGMA synchronous=NORMAL')
             self.c.execute('''CREATE TABLE IF NOT EXISTS fnc_exec
                              (module_name TEXT, function_name TEXT, execution_time REAL,
                               timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')

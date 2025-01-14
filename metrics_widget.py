@@ -76,17 +76,17 @@ class MetricsTab(QWidget):
             self.fnc_exec_table.setItem(i, 0, QTableWidgetItem(module_name))
             self.fnc_exec_table.setItem(i, 1, QTableWidgetItem(function_name))
             self.fnc_exec_table.setItem(i, 2, QTableWidgetItem(f"{str(nb_exec)}"))
-            self.fnc_exec_table.setItem(i, 3, QTableWidgetItem(f"{round(mean_exec_time*1000,0)}ms"))
-            self.fnc_exec_table.setItem(i, 4, QTableWidgetItem(f"{round(max_exec_time*1000,0)}ms"))
-            self.fnc_exec_table.setItem(i, 5, QTableWidgetItem(f"{round(min_exec_time*1000,0)}ms"))
-            self.fnc_exec_table.setItem(i, 6, QTableWidgetItem(f"{round(total_time, 0)}ms"))
+            self.fnc_exec_table.setItem(i, 3, QTableWidgetItem(f"{round(mean_exec_time * 1000, 0)}ms"))
+            self.fnc_exec_table.setItem(i, 4, QTableWidgetItem(f"{round(max_exec_time * 1000, 0)}ms"))
+            self.fnc_exec_table.setItem(i, 5, QTableWidgetItem(f"{round(min_exec_time * 1000, 0)}ms"))
+            self.fnc_exec_table.setItem(i, 6, QTableWidgetItem(f"{round(total_time * 1000, 0)}ms"))
 
         api_calls = self.metrics.fetch_api_calls()
         self.api_calls_table.setRowCount(len(api_calls))
         for i, (endpoint, nb_calls, cache_hit) in enumerate(api_calls):
             self.api_calls_table.setItem(i, 0, QTableWidgetItem(endpoint))
             self.api_calls_table.setItem(i, 1, QTableWidgetItem(str(nb_calls)))
-            self.api_calls_table.setItem(i, 2, QTableWidgetItem(f"{(cache_hit/nb_calls)*100:.2f}%"))
+            self.api_calls_table.setItem(i, 2, QTableWidgetItem(f"{(cache_hit / nb_calls) * 100:.2f}%"))
 
     def set_gui_enabled(self, enabled):
         return

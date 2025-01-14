@@ -8,6 +8,7 @@ import time
 from datetime import datetime, timedelta
 from platformdirs import user_data_dir
 from global_variables import app_name, cache_db_file
+from metrics import Metrics
 
 
 class DictCacheBackend:
@@ -170,6 +171,7 @@ class CacheManager:
         else:
             raise ValueError("Invalid cache backend: {}".format(backend))
 
+    @Metrics.track_sync_fnc_exec
     def get(self, key: str, ttl: int):
         data = None
         if key in self.cache:
@@ -180,9 +182,11 @@ class CacheManager:
                 del self.cache[key]
         return data
 
+    @Metrics.track_sync_fnc_exec
     def set(self, key, data=[]):
         self.cache[key] = data
 
+    @Metrics.track_sync_fnc_exec
     def replace(self, key: str, new_data, ttl: int, primary_key=['id']):
         old_data = self.get(key, ttl)
         if not old_data:
@@ -206,12 +210,15 @@ class CacheManager:
         if isinstance(old_data, dict):
             return  # TODO - Replace with dictionary ?
 
+    @Metrics.track_sync_fnc_exec
     def invalidate(self, key):
         if key in self.cache:
             del self.cache[key]
 
+    @Metrics.track_sync_fnc_exec
     def clean_obsolete(self, ttl: int):
         self.cache.clean_obsolete(ttl)
 
+    @Metrics.track_sync_fnc_exec
     def clear(self):
         self.cache.clear()
