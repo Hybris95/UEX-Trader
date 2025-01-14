@@ -12,6 +12,7 @@ from typing import List
 from commodity import Commodity
 from global_variables import persistent_cache_activated
 from global_variables import system_ttl, planet_ttl, terminal_ttl
+from metrics import Metrics
 
 
 class API:
@@ -42,12 +43,14 @@ class API:
             else:
                 self.cache = CacheManager(backend="local")
             self.session = None
+            self.metrics = None
             self.singleton = True
 
     async def initialize(self):
         async with self._lock:
             if self.session is None:
                 self.session = aiohttp.ClientSession()
+                self.metrics = await Metrics.get_instance()
                 self._initialized.set()
 
     async def cleanup(self):
@@ -78,6 +81,7 @@ class API:
     def get_logger(self):
         return logging.getLogger(__name__)
 
+    @Metrics.track_async_fnc_exec
     async def _fetch_data(self, endpoint, params=None, default_data=[], data_only=True, ttl=None):
         await self.ensure_initialized()
         if not ttl:
@@ -88,8 +92,10 @@ class API:
         logger = self.get_logger()
         if cached_data:
             logger.debug(f"Cache hit for {cache_key}")
+            self.metrics.track_api_call(endpoint, params, cache_hit=True)
             return cached_data, True
         else:
+            self.metrics.track_api_call(endpoint, params, cache_hit=False)
             logger.debug(f"Cache miss for {cache_key}")
         url = f"{await self.get_api_base_url()}{endpoint}"
         logger.debug(f"API Request: GET {url} {params if params else ''}")
@@ -119,6 +125,7 @@ class API:
                 logging.debug(traceback.format_exc())
             raise  # Re-raise the exception to be handled by the calling function
 
+    @Metrics.track_async_fnc_exec
     async def _post_data(self, endpoint, data=None):
         await self.ensure_initialized()
         if not data:
@@ -153,6 +160,7 @@ class API:
                 logging.debug(traceback.format_exc())
             raise  # Re-raise the exception to be handled by the calling function
 
+    @Metrics.track_sync_fnc_exec
     def _group_by(self, data, param: str):
         logger = self.get_logger()
         try:
@@ -164,6 +172,7 @@ class API:
             if self.config_manager.get_debug():
                 logging.debug(traceback.format_exc())
 
+    @Metrics.track_sync_fnc_exec
     def _group_by_and_set(self, data, group_param: str, endpoint: str):
         grouped_data_by_param = self._group_by(data, group_param)
         for data_grouped in grouped_data_by_param:
@@ -172,6 +181,7 @@ class API:
                 data_grouped_hash = hashlib.md5(str(data_grouped_params).encode('utf-8')).hexdigest()
                 self.cache.set(f"{endpoint}_{data_grouped_hash}", data_grouped)
 
+    @Metrics.track_sync_fnc_exec
     def _group_by_and_replace(self, data, group_param: str, endpoint: str, ttl=None, replace_primary_key=['id']):
         grouped_data_by_param = self._group_by(data, group_param)
         if not ttl:
@@ -182,6 +192,7 @@ class API:
                 data_grouped_hash = hashlib.md5(str(data_grouped_params).encode('utf-8')).hexdigest()
                 self.cache.replace(f"{endpoint}_{data_grouped_hash}", data_grouped, ttl, replace_primary_key)
 
+    @Metrics.track_async_fnc_exec
     async def _fetch_commodities(self, params):
         endpoint = "/commodities"
         commodities, cached = (await self._fetch_data(endpoint, params=params))
@@ -192,6 +203,7 @@ class API:
                 self.cache.set(f"{endpoint}_{commodity_hash}", commodity)
         return commodities
 
+    @Metrics.track_async_fnc_exec
     async def _regroup_all_commodities_prices_from_cache(self):
         endpoint = "/commodities_prices"
         commodity_params = {}
@@ -203,6 +215,7 @@ class API:
             self._group_by_and_set(commodities, 'id_terminal', endpoint)
             self._group_by_and_set(commodities, 'id_commodity', endpoint)
 
+    @Metrics.track_async_fnc_exec
     async def _fetch_commodities_prices(self, params):
         endpoint = "/commodities_prices"
         commodities, cached = (await self._fetch_data(endpoint, params=params))
@@ -221,6 +234,7 @@ class API:
                 self.cache.set(f"{endpoint}_{commodity_terminal_hash}", [commodity])
         return commodities
 
+    @Metrics.track_async_fnc_exec
     async def _fetch_planets(self, params):
         endpoint = "/planets"
         planets, cached = (await self._fetch_data(endpoint, params=params, ttl=planet_ttl))
@@ -239,6 +253,7 @@ class API:
                 self.cache.set(f"{endpoint}_{planet_hash}", [planet])
         return planets
 
+    @Metrics.track_async_fnc_exec
     async def _fetch_terminals(self, params):
         endpoint = "/terminals"
         terminals, cached = (await self._fetch_data(endpoint, params=params, ttl=terminal_ttl))
@@ -255,6 +270,7 @@ class API:
                 self.cache.set(f"{endpoint}_{terminal_hash}", [terminal])
         return terminals
 
+    @Metrics.track_async_fnc_exec
     async def _fetch_systems(self, params=None):
         endpoint = "/star_systems"
         systems, cached = (await self._fetch_data(endpoint, params, ttl=system_ttl))
@@ -265,6 +281,7 @@ class API:
                 self.cache.set(f"{endpoint}_{system_hash}", [system])
         return systems
 
+    @Metrics.track_async_fnc_exec
     async def _fetch_commodities_routes(self, params):
         endpoint = "/commodities_routes"
         commodities_routes, cached = (await self._fetch_data(endpoint, params, ttl=planet_ttl))
@@ -287,24 +304,29 @@ class API:
                 self.cache.set(f"{endpoint}_{commodity_route_hash}", [commodity_route])
         return commodities_routes
 
+    @Metrics.track_async_fnc_exec
     async def _filter_std_commodities(self, commodities):
         return [commodity for commodity in commodities
                 if commodity.get("is_available", 0) == 1]
 
+    @Metrics.track_async_fnc_exec
     async def fetch_all_commodities(self):
         commodities = await self._fetch_commodities({})
         return (await self._filter_std_commodities(commodities))
 
+    @Metrics.track_async_fnc_exec
     async def _filter_std_commodities_prices(self, commodities):
         selected_version = await self.config_manager.get_version_value()
         return [commodity for commodity in commodities
                 if commodity.get("game_version", '0.0') == selected_version]
 
+    @Metrics.track_async_fnc_exec
     async def fetch_commodities_by_id(self, id_commodity):
         params = {'id_commodity': id_commodity}
         commodities = await self._fetch_commodities_prices(params)
         return (await self._filter_std_commodities_prices(commodities))
 
+    @Metrics.track_async_fnc_exec
     async def fetch_commodities_from_terminal(self, id_terminal, id_commodity=None):
         params = {'id_terminal': id_terminal}
         if id_commodity:
@@ -312,6 +334,7 @@ class API:
         commodities = await self._fetch_commodities_prices(params)
         return (await self._filter_std_commodities_prices(commodities))
 
+    @Metrics.track_async_fnc_exec
     async def fetch_all_commodities_prices(self):
         endpoint = "/commodities_prices"
         all_terminals = await self.fetch_all_terminals()
@@ -324,10 +347,12 @@ class API:
         await self._regroup_all_commodities_prices_from_cache()
         return (await self._filter_std_commodities_prices(commodities))
 
+    @Metrics.track_sync_fnc_exec
     def _filter_std_planets(self, planets):
         return [planet for planet in planets
                 if planet.get("is_available") == 1]
 
+    @Metrics.track_async_fnc_exec
     async def fetch_planets(self, system_id=None, planet_id=None):
         params = {}
         if system_id:
@@ -343,20 +368,24 @@ class API:
         return [planet for planet in self._filter_std_planets(planets)
                 if (not planet_id or planet.get("id") == planet_id)]
 
+    @Metrics.track_sync_fnc_exec
     def _filter_std_terminals(self, terminals):
         return [terminal for terminal in terminals
                 if terminal.get("type") == "commodity" and terminal.get("is_available") == 1]
 
+    @Metrics.track_async_fnc_exec
     async def fetch_all_terminals(self):
         params = {}
         terminals = await self._fetch_terminals(params)
         return self._filter_std_terminals(terminals)
 
+    @Metrics.track_async_fnc_exec
     async def fetch_terminals_by_system(self, system_id):
         params = {'id_star_system': system_id}
         terminals = await self._fetch_terminals(params)
         return self._filter_std_terminals(terminals)
 
+    @Metrics.track_async_fnc_exec
     async def fetch_terminals_by_planet(self, planet_id, filtering_terminal=None):
         params = {'id_planet': planet_id}
         if filtering_terminal:
@@ -370,20 +399,24 @@ class API:
         return [terminal for terminal in self._filter_std_terminals(terminals)
                 if (not filtering_terminal or terminal.get("id") == filtering_terminal)]
 
+    @Metrics.track_sync_fnc_exec
     def _filter_std_systems(self, systems):
         return [system for system in systems
                 if system.get("is_available") == 1]
 
+    @Metrics.track_async_fnc_exec
     async def fetch_all_systems(self):
         systems = await self._fetch_systems()
         return self._filter_std_systems(systems)
 
+    @Metrics.track_async_fnc_exec
     async def fetch_systems_from_origin_system(self, origin_system_id, max_bounce=1):
         params = {}
         # TODO - Return systems linked to origin_system_id with a maximum of "max_bounce" hops - API does not give this for now
         systems = await self._fetch_systems(params=params)
         return self._filter_std_systems(systems)
 
+    @Metrics.track_async_fnc_exec
     async def fetch_system(self, system_id):
         system_params = {'id_star_system': system_id}
         system_hash = hashlib.md5(str(system_params).encode('utf-8')).hexdigest()
@@ -395,14 +428,19 @@ class API:
         return [system for system in self._filter_std_systems(systems)
                 if system.get("id") == system_id]
 
+    @Metrics.track_async_fnc_exec
     async def fetch_versions(self):
-        return (await self._fetch_data("/game_versions", data_only=False))[0].get("data", {})
+        endpoint = "/game_versions"
+        game_versions, cached = await self._fetch_data(endpoint, data_only=False)
+        return game_versions.get("data", {})
 
+    @Metrics.track_async_fnc_exec
     async def perform_trade(self, data):
         """Performs a trade operation (buy/sell)."""
         # TODO - Check if data is formed properly considering user_trades_add endpoint
         return await self._post_data("/user_trades_add/", data)
 
+    @Metrics.track_async_fnc_exec
     async def fetch_all_routes(self):
         endpoint = "/commodities_routes"
         all_terminals = await self.fetch_all_terminals()
@@ -418,6 +456,7 @@ class API:
                 self.cache.set(f"{endpoint}_{params_hash}", [route])
             all_routes.extend(routes_from_origin)  # TODO - Store all routes in cache ?
 
+    @Metrics.track_async_fnc_exec
     async def fetch_distance(self, id_terminal_origin, id_terminal_destination):
         params = {
             'id_terminal_origin': id_terminal_origin,
@@ -433,6 +472,7 @@ class API:
                 return route["distance"]
         return 1
 
+    @Metrics.track_async_fnc_exec
     async def commodity_submit(self, id_commodity_terminal: int, commodities: List[Commodity], details: str):
         # TODO - Check if id_commodity_terminal exists as a commodity terminal
 
@@ -462,6 +502,7 @@ class API:
         logger.debug(f"Submitting commodities to terminal {id_commodity_terminal}")
         return await self._post_data("/data_submit/", data)
 
+    @Metrics.track_async_fnc_exec
     async def clean_cache(self):
         max_ttl = max(system_ttl, planet_ttl, terminal_ttl, int(self.config_manager.get_ttl()))
         self.cache.clean_obsolete(ttl=max_ttl)

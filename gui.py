@@ -14,10 +14,12 @@ from api import API
 import asyncio
 from tools import translate
 from global_variables import trade_tab_activated, trade_route_tab_activated
-from global_variables import best_trade_route_tab_activated, submit_tab_activated
+from global_variables import best_trade_route_tab_activated, submit_tab_activated, metrics_tab_activated
 from global_variables import load_systems_activated, load_planets_activated, load_terminals_activated
 from global_variables import load_commodities_prices_activated, load_commodities_routes_activated
 from global_variables import remove_obsolete_keys_activated
+from metrics_widget import MetricsTab
+from metrics import Metrics
 
 
 class SplashScreen(QSplashScreen):
@@ -49,6 +51,7 @@ class UexcorpTrader(QWidget):
         self.api = None
         self.show_qmessagebox = show_qmessagebox
 
+    @Metrics.track_sync_fnc_exec
     def _update_splash(self, value, message):
         def update():
             if self.splash:
@@ -56,6 +59,7 @@ class UexcorpTrader(QWidget):
                 QApplication.processEvents()
         self.loop.call_soon_threadsafe(update)
 
+    @Metrics.track_async_fnc_exec
     async def initialize(self):
         async with self._lock:
             if self.config_manager is None or self.translation_manager is None or self.api is None:
@@ -109,6 +113,7 @@ class UexcorpTrader(QWidget):
         await self.ensure_initialized()
         return self
 
+    @Metrics.track_async_fnc_exec
     async def init_ui(self):
         self.setWindowTitle(await translate("window_title"))
         self.setWindowIcon(QIcon("_internal/resources/UEXTrader_icon_resized.png"))
@@ -135,6 +140,11 @@ class UexcorpTrader(QWidget):
             self.submitTab = SubmitTab(self)
             await self.submitTab.initialize()
             self.tabs.addTab(self.submitTab, await translate("submit_tab"))
+        if metrics_tab_activated:
+            self.metricsWidget = MetricsTab(self)
+            await self.metricsWidget.initialize()
+            self.tabs.addTab(self.metricsWidget, "Metrics")
+
         if not hasattr(self, "main_layout"):
             self.main_layout = QVBoxLayout()
         self.main_layout.addWidget(self.tabs)
@@ -150,6 +160,7 @@ class UexcorpTrader(QWidget):
         await self.api.cleanup()
         # Other cleanup...
 
+    @Metrics.track_async_fnc_exec
     async def apply_appearance_mode(self, appearance_mode=None):
         if not appearance_mode:
             await self.ensure_initialized()
@@ -162,6 +173,7 @@ class UexcorpTrader(QWidget):
             self.app.setStyle(QStyleFactory.create("Fusion"))
             self.app.setPalette(QApplication.style().standardPalette())
 
+    @Metrics.track_sync_fnc_exec
     def create_dark_palette(self):
         dark_palette = QPalette()
         dark_palette.setColor(QPalette.Window, QColor(53, 53, 53))
@@ -179,6 +191,7 @@ class UexcorpTrader(QWidget):
         dark_palette.setColor(QPalette.HighlightedText, Qt.black)
         return dark_palette
 
+    @Metrics.track_sync_fnc_exec
     def closeEvent(self, event):
         # Save window size
         self.config_manager.set_window_size(self.width(), self.height())
@@ -186,6 +199,7 @@ class UexcorpTrader(QWidget):
         self.loop.stop()
         self.loop.close()
 
+    @Metrics.track_async_fnc_exec
     async def set_gui_enabled(self, enabled):
         await self.ensure_initialized()
         self.configTab.set_gui_enabled(enabled)
