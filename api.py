@@ -192,7 +192,7 @@ class API:
                 self.cache.set(f"{endpoint}_{commodity_hash}", commodity)
         return commodities
 
-    async def regroup_all_commodities_prices_from_cache(self):
+    async def _regroup_all_commodities_prices_from_cache(self):
         endpoint = "/commodities_prices"
         commodity_params = {}
         commodity_hash = hashlib.md5(str(commodity_params).encode('utf-8')).hexdigest()
@@ -321,7 +321,7 @@ class API:
         commodities_params = {}
         commodities_hash = hashlib.md5(str(commodities_params).encode('utf-8')).hexdigest()
         self.cache.set(f"{endpoint}_{commodities_hash}", commodities)
-        await self.regroup_all_commodities_prices_from_cache()
+        await self._regroup_all_commodities_prices_from_cache()
         return (await self._filter_std_commodities_prices(commodities))
 
     def _filter_std_planets(self, planets):
@@ -461,3 +461,7 @@ class API:
 
         logger.debug(f"Submitting commodities to terminal {id_commodity_terminal}")
         return await self._post_data("/data_submit/", data)
+
+    async def clean_cache(self):
+        max_ttl = max(system_ttl, planet_ttl, terminal_ttl, int(self.config_manager.get_ttl()))
+        self.cache.clean_obsolete(ttl=max_ttl)
