@@ -75,11 +75,11 @@ class Metrics:
                 self.api_calls_buffer.clear()
             self.conn.commit()
 
-    @classmethod
-    def track_sync_fnc_exec(cls, func):
+    @staticmethod
+    def track_sync_fnc_exec(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            instance = cls._instance or cls()
+            instance = Metrics._instance or Metrics()
             start_time = time.time()
             result = func(*args, **kwargs)
             if metrics_collect_activated:
@@ -91,11 +91,11 @@ class Metrics:
             return result
         return wrapper
 
-    @classmethod
-    def track_async_fnc_exec(cls, func):
+    @staticmethod
+    def track_async_fnc_exec(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            instance = await cls.get_instance()
+            instance = await Metrics.get_instance()
             start_time = time.time()
             result = await func(*args, **kwargs)
             if metrics_collect_activated:
@@ -107,12 +107,14 @@ class Metrics:
             return result
         return wrapper
 
+    @track_sync_fnc_exec
     def track_api_call(self, endpoint: str, params: dict, cache_hit: bool):
         if metrics_collect_activated:
             self.api_calls_buffer.append((endpoint, str(params), 1 if cache_hit else 0))
             if len(self.api_calls_buffer) >= self.batch_size:
                 asyncio.create_task(self.perform_batch_insert())
 
+    @track_sync_fnc_exec
     def fetch_fnc_exec(self):
         self.c.execute('''SELECT module_name, function_name, COUNT(1) as nb_exec,
                           AVG(execution_time) as mean_exec_time,
@@ -124,6 +126,7 @@ class Metrics:
                           ORDER BY total_time DESC''')
         return self.c.fetchall()
 
+    @track_sync_fnc_exec
     def fetch_api_calls(self):
         self.c.execute('''SELECT endpoint, COUNT(1) as nb_calls,
                           SUM(cache_hit) as cache_hit
@@ -132,11 +135,12 @@ class Metrics:
                           ORDER BY nb_calls DESC''')
         return self.c.fetchall()
 
+    @track_sync_fnc_exec
     def remove_all_metrics(self):
         self.c.execute('DELETE FROM api_calls')
         self.c.execute('DELETE FROM fnc_exec')
         self.conn.commit()
 
-    def close(self):
-        asyncio.create_task(self.perform_batch_insert())  # Ensure all buffered data is written before closing
+    async def close(self):
+        await self.perform_batch_insert()  # Ensure all buffered data is written before closing
         self.conn.close()
