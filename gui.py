@@ -18,6 +18,7 @@ from global_variables import best_trade_route_tab_activated, submit_tab_activate
 from global_variables import load_systems_activated, load_planets_activated, load_terminals_activated
 from global_variables import load_commodities_prices_activated, load_commodities_routes_activated
 from global_variables import remove_obsolete_keys_activated
+from metrics_widget import MetricsTab
 
 
 class SplashScreen(QSplashScreen):
@@ -135,6 +136,11 @@ class UexcorpTrader(QWidget):
             self.submitTab = SubmitTab(self)
             await self.submitTab.initialize()
             self.tabs.addTab(self.submitTab, await translate("submit_tab"))
+
+        # Add MetricsWidget
+        self.metricsWidget = MetricsTab(self)
+        self.tabs.addTab(self.metricsWidget, "Metrics")
+
         if not hasattr(self, "main_layout"):
             self.main_layout = QVBoxLayout()
         self.main_layout.addWidget(self.tabs)

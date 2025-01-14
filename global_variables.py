@@ -1,6 +1,7 @@
 # global_variables.py
 app_name = "UEX-Trader"
 cache_db_file = "cache.db"
+metrics_db_file = "metrics.db"
 config_ini_file = "config.ini"
 
 # hard-coded activable features
