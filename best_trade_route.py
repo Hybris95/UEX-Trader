@@ -772,7 +772,8 @@ class BestTradeRouteTab(QWidget):
                     item.setFlags(item.flags() & ~Qt.ItemIsEditable)  # Make the item non-editable
                     self.trade_route_table.setItem(i, j, item)
                 else:
-                    await self.add_action_buttons(i, j, trade_routes[i])
+                    if not quick:
+                        await self.add_action_buttons(i, j, trade_routes[i])
 
         # Resize columns to fit contents
         self.trade_route_table.resizeColumnsToContents()
