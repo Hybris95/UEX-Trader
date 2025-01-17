@@ -12,6 +12,7 @@ submit_tab_activated = False
 metrics_tab_activated = False  # DEBUG - Used for developers (TODO - use get_debug from config ??)
 metrics_collect_activated = False  # DEBUG - Used for developers (TODO - use get_debug from config ??)
 persistent_cache_activated = True
+distance_related_features = False
 
 # Startup Features
 load_systems_activated = True
