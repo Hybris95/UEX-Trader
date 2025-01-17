@@ -17,7 +17,7 @@ from global_variables import trade_tab_activated, trade_route_tab_activated
 from global_variables import best_trade_route_tab_activated, submit_tab_activated, metrics_tab_activated
 from global_variables import load_systems_activated, load_planets_activated, load_terminals_activated
 from global_variables import load_commodities_prices_activated, load_commodities_routes_activated
-from global_variables import remove_obsolete_keys_activated
+from global_variables import remove_obsolete_keys_activated, distance_related_features
 from metrics_widget import MetricsTab
 from metrics import Metrics
 
@@ -129,7 +129,7 @@ class UexcorpTrader(QWidget):
 
     @Metrics.track_async_fnc_exec
     async def _splash_load_distances(self):
-        if load_commodities_routes_activated:
+        if load_commodities_routes_activated and distance_related_features:
             self._update_splash(55, "Initializing API Cache - Distances (Once per week)...")
             if not self.api.cache.endpoint_exists_in_cache("/commodities_routes"):
                 await self.api.fetch_all_routes()
