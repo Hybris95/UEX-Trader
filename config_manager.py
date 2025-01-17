@@ -8,7 +8,7 @@ from logger_setup import setup_logger
 from api import API
 from translation_manager import TranslationManager
 from platformdirs import user_config_dir
-from global_variables import app_name, config_ini_file
+from global_variables import app_name, config_ini_file, default_ttl
 from metrics import Metrics
 
 logger = logging.getLogger(__name__)
@@ -189,7 +189,7 @@ class ConfigManager:
 
     @Metrics.track_sync_fnc_exec
     def get_ttl(self):
-        return self.config.get("SETTINGS", "ttl", fallback="1800")
+        return self.config.get("SETTINGS", "ttl", fallback=str(default_ttl))
 
     @Metrics.track_sync_fnc_exec
     def set_ttl(self, ttl):

@@ -25,3 +25,4 @@ remove_obsolete_keys_activated = True
 system_ttl = 2419200  # Kept one month
 planet_ttl = 604800  # Kept one week
 terminal_ttl = 86400  # Kept one day
+default_ttl = 1800  # 30min

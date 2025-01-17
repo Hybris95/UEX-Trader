@@ -4,10 +4,13 @@ import json
 import os
 import sqlite3
 import time
+import hashlib
+import logging
 
 from datetime import datetime, timedelta
 from platformdirs import user_data_dir
 from global_variables import app_name, cache_db_file
+from global_variables import system_ttl, planet_ttl, terminal_ttl, default_ttl
 from metrics import Metrics
 
 
@@ -71,6 +74,13 @@ class DictCacheBackend:
 
     def __contains__(self, key):
         return key in self.__cache
+
+    def contains_endpoint(self, endpoint):
+        for key in self.__cache:
+            key_endpoint = '_'.join(key.split('_')[:-1])
+            if key_endpoint == endpoint:
+                return True
+        return False
 
 
 class SQLiteCacheBackend:
@@ -181,33 +191,73 @@ class SQLiteCacheBackend:
     def __contains__(self, key):
         return self.__getitem__(key) is not None
 
+    def contains_endpoint(self, endpoint):
+        cur = self.con.cursor()
+        res = cur.execute("""
+            SELECT COUNT(1)
+            FROM cache
+            WHERE key LIKE CONCAT(?, '\_%') ESCAPE '\\';
+        """, [endpoint]).fetchone()
+        cur.close()
+
+        if res is None:
+            return False
+        count = res[0]
+        return count > 0
+
 
 class CacheManager:
-    def __init__(self, backend="persistent"):
+    def __init__(self, backend="persistent", config_manager=None):
         if backend == "persistent":
             self.cache = SQLiteCacheBackend()
         elif backend == "local":
             self.cache = DictCacheBackend()
         else:
             raise ValueError("Invalid cache backend: {}".format(backend))
+        self.config_manager = config_manager
 
     @Metrics.track_sync_fnc_exec
-    def get(self, key: str, ttl: int):
+    def _get(self, key: str, ttl: int):
         data = None
+        logger = self.get_logger()
         if key in self.cache:
             entry = self.cache[key]
             if ((time.time() - entry['timestamp']) < ttl):
                 data = entry['data']
+                logger.debug(f"Cache hit for {key}")
             else:
                 del self.cache[key]
+                logger.debug(f"Cache obsolete hit for {key}")
+        else:
+            logger.debug(f"Cache miss for {key}")
         return data
 
     @Metrics.track_sync_fnc_exec
-    def set(self, key, data=[]):
+    def get(self, endpoint, params):
+        key = self._get_key(endpoint, params)
+        ttl = self._get_ttl_from_endpoint(endpoint)
+        return self._get(key, ttl)
+
+    @Metrics.track_sync_fnc_exec
+    def _get_key(self, endpoint, params):
+        hashed_params = hashlib.md5(str(params).encode('utf-8')).hexdigest()
+        return f"{endpoint}_{hashed_params}"
+
+    @Metrics.track_sync_fnc_exec
+    def endpoint_exists_in_cache(self, endpoint):
+        return self.cache.contains_endpoint(endpoint)
+
+    @Metrics.track_sync_fnc_exec
+    def _set(self, key, data):
         self.cache[key] = data
 
     @Metrics.track_sync_fnc_exec
-    def replace(self, key: str, new_data, ttl: int, primary_key=['id']):
+    def set(self, endpoint, params, data=[]):
+        key = self._get_key(endpoint, params)
+        return self._set(key, data)
+
+    @Metrics.track_sync_fnc_exec
+    def _replace(self, key: str, new_data, ttl: int, primary_key=['id']):
         old_data = self.get(key, ttl)
         if not old_data:
             return
@@ -231,14 +281,47 @@ class CacheManager:
             return  # TODO - Replace with dictionary ?
 
     @Metrics.track_sync_fnc_exec
-    def invalidate(self, key):
+    def _get_ttl_from_endpoint(self, endpoint):
+        ttl = default_ttl
+        match endpoint:
+            case "/star_systems":
+                ttl = system_ttl
+            case "/planets":
+                ttl = planet_ttl
+            case "/terminals":
+                ttl = terminal_ttl
+            case "/commodities_routes":
+                ttl = planet_ttl
+            case "/game_versions":
+                ttl = default_ttl
+            case _:
+                if self.config_manager:
+                    ttl = int(self.config_manager.get_ttl())
+        return ttl
+
+    @Metrics.track_sync_fnc_exec
+    def replace(self, endpoint, params, new_data, primary_key=['id']):
+        key = self._get_key(endpoint, params)
+        return self._replace(key, new_data=new_data, ttl=self._get_ttl_from_endpoint(endpoint), primary_key=primary_key)
+
+    @Metrics.track_sync_fnc_exec
+    def _invalidate(self, key):
         if key in self.cache:
             del self.cache[key]
 
     @Metrics.track_sync_fnc_exec
-    def clean_obsolete(self, ttl: int):
-        self.cache.clean_obsolete(ttl)
+    def invalidate(self, endpoint, params):
+        key = self._get_key(endpoint, params)
+        self._invalidate(key)
+
+    @Metrics.track_sync_fnc_exec
+    def clean_obsolete(self):
+        max_ttl = max(system_ttl, planet_ttl, terminal_ttl, default_ttl, int(self.config_manager.get_ttl()))
+        self.cache.clean_obsolete(max_ttl)
 
     @Metrics.track_sync_fnc_exec
     def clear(self):
         self.cache.clear()
+
+    def get_logger(self):
+        return logging.getLogger(__name__)

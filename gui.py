@@ -73,7 +73,7 @@ class UexcorpTrader(QWidget):
                     self.translation_manager = await TranslationManager.get_instance()
                     self._update_splash(2, "Initializing API...")
                     self.api = await API.get_instance(self.config_manager)
-                    await load_cache()  # Load Cache and detail
+                    await self._load_cache()  # Load Cache and detail
                     self._update_splash(98, "Initializing UI...")
                     await self.init_ui()
                     self._update_splash(99, "Applying Appearance Mode...")
@@ -81,28 +81,58 @@ class UexcorpTrader(QWidget):
                     self._update_splash(100, "Initialization Complete!")
                     QTimer.singleShot(1000, self.splash.close)  # Close splash after 1 second
 
-                async def load_cache():
-                    if remove_obsolete_keys_activated:
-                        self._update_splash(3, "Removing obsolete cache keys")
-                        await self.api.clean_cache()
-                    if load_systems_activated:
-                        self._update_splash(10, "Initializing API Cache - Systems...")
-                        await self.api.fetch_all_systems()
-                    if load_planets_activated:
-                        self._update_splash(11, "Initializing API Cache - Planets...")
-                        await self.api.fetch_planets()
-                    if load_terminals_activated:
-                        self._update_splash(13, "Initializing API Cache - Terminals...")
-                        await self.api.fetch_all_terminals()
-                    if load_commodities_prices_activated:
-                        self._update_splash(15, "Initializing API Cache - Commodities...")
-                        await self.api.fetch_all_commodities_prices()
-                    if load_commodities_routes_activated:
-                        self._update_splash(55, "Initializing API Cache - Distances (Once per week)...")
-                        await self.api.fetch_all_routes()
-
                 await asyncio.gather(init_tasks())
                 self._initialized.set()
+
+    @Metrics.track_async_fnc_exec
+    async def _load_cache(self):
+        self._splash_remove_obsolete_keys()
+        await self._splash_load_systems()
+        await self._splash_load_planets()
+        await self._splash_load_terminals()
+        await self._splash_load_commodities_prices()
+        await self._splash_load_distances()
+
+    @Metrics.track_sync_fnc_exec
+    def _splash_remove_obsolete_keys(self):
+        if remove_obsolete_keys_activated:
+            self._update_splash(3, "Removing obsolete cache keys")
+            self.api.cache.clean_obsolete()
+
+    @Metrics.track_async_fnc_exec
+    async def _splash_load_systems(self):
+        if load_systems_activated:
+            self._update_splash(10, "Initializing API Cache - Systems...")
+            if not self.api.cache.endpoint_exists_in_cache("/star_systems"):
+                await self.api.fetch_all_systems()
+
+    @Metrics.track_async_fnc_exec
+    async def _splash_load_planets(self):
+        if load_planets_activated:
+            self._update_splash(11, "Initializing API Cache - Planets...")
+            if not self.api.cache.endpoint_exists_in_cache("/planets"):
+                await self.api.fetch_planets()
+
+    @Metrics.track_async_fnc_exec
+    async def _splash_load_terminals(self):
+        if load_terminals_activated:
+            self._update_splash(13, "Initializing API Cache - Terminals...")
+            if not self.api.cache.endpoint_exists_in_cache("/terminals"):
+                await self.api.fetch_all_terminals()
+
+    @Metrics.track_async_fnc_exec
+    async def _splash_load_commodities_prices(self):
+        if load_commodities_prices_activated:
+            self._update_splash(15, "Initializing API Cache - Commodities...")
+            if not self.api.cache.endpoint_exists_in_cache("/commodities_prices"):
+                await self.api.fetch_all_commodities_prices()
+
+    @Metrics.track_async_fnc_exec
+    async def _splash_load_distances(self):
+        if load_commodities_routes_activated:
+            self._update_splash(55, "Initializing API Cache - Distances (Once per week)...")
+            if not self.api.cache.endpoint_exists_in_cache("/commodities_routes"):
+                await self.api.fetch_all_routes()
 
     async def ensure_initialized(self):
         if not self._initialized.is_set():
