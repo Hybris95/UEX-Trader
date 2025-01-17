@@ -7,7 +7,6 @@ from global_variables import app_name, metrics_db_file
 import os
 import asyncio
 from global_variables import metrics_collect_activated
-from qasync import QEventLoop
 
 
 class Metrics:
@@ -37,47 +36,26 @@ class Metrics:
             db_path = os.path.join(db_dir, metrics_db_file)
             self.conn = sqlite3.connect(db_path, isolation_level=None)  # Use autocommit mode
             self.c = self.conn.cursor()
-            self.c.execute('PRAGMA journal_mode=WAL')  # Enable WAL mode
-            # Set synchronous mode to NORMAL for a balance between performance and integrity
-            self.c.execute('PRAGMA synchronous=NORMAL')
-            self.c.execute('''CREATE TABLE IF NOT EXISTS fnc_exec
-                             (module_name TEXT, function_name TEXT, execution_time REAL,
-                              timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
-            self.c.execute('''CREATE TABLE IF NOT EXISTS api_calls
-                             (endpoint TEXT, params TEXT, cache_hit INTEGER, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
-            self.conn.commit()
-            self.fnc_exec_buffer = []
-            self.api_calls_buffer = []
-            self.batch_size = 1000  # Number of records to batch insert
-            self.batch_interval = 5  # Time interval in seconds to perform batch insert
-            self.singleton = True
-            if metrics_collect_activated:
-                loop = QEventLoop()
-                asyncio.set_event_loop(loop)
-                loop.create_task(self.batch_insert_task())
+            try:
+                self.c.execute('PRAGMA journal_mode=WAL')  # Enable WAL mode
+                # Set synchronous mode to NORMAL for a balance between performance and integrity
+                self.c.execute('PRAGMA synchronous=NORMAL')
+                self.c.execute('''CREATE TABLE IF NOT EXISTS fnc_exec
+                                (module_name TEXT, function_name TEXT, execution_time REAL,
+                                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+                self.c.execute('''CREATE TABLE IF NOT EXISTS api_calls
+                                (endpoint TEXT, params TEXT,
+                                 cache_hit INTEGER,
+                                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+                self.conn.commit()
+                self.singleton = True
+            except sqlite3.OperationalError:
+                return
 
     async def initialize(self):
         async with self._lock:
             if not self._initialized.is_set():
                 self._initialized.set()
-
-    async def batch_insert_task(self):
-        while metrics_collect_activated:
-            await asyncio.sleep(self.batch_interval)
-            await self.perform_batch_insert()
-
-    async def perform_batch_insert(self):
-        async with self._lock:
-            if metrics_collect_activated:
-                if self.fnc_exec_buffer:
-                    self.c.executemany("INSERT INTO fnc_exec (module_name, function_name, execution_time) VALUES (?, ?, ?)",
-                                       self.fnc_exec_buffer)
-                    self.fnc_exec_buffer.clear()
-                if self.api_calls_buffer:
-                    self.c.executemany("INSERT INTO api_calls (endpoint, params, cache_hit) VALUES (?, ?, ?)",
-                                       self.api_calls_buffer)
-                    self.api_calls_buffer.clear()
-                self.conn.commit()
 
     @staticmethod
     def track_sync_fnc_exec(func):
@@ -89,9 +67,11 @@ class Metrics:
             if metrics_collect_activated:
                 end_time = time.time()
                 execution_time = end_time - start_time
-                instance.fnc_exec_buffer.append((func.__module__, func.__name__, execution_time))
-                if len(instance.fnc_exec_buffer) >= instance.batch_size:
-                    asyncio.create_task(instance.perform_batch_insert())
+                try:
+                    instance.c.execute("INSERT INTO fnc_exec (module_name, function_name, execution_time) VALUES (?, ?, ?)",
+                                       (func.__module__, func.__name__, execution_time))
+                except sqlite3.OperationalError:
+                    return result  # TODO - Log error instead
             return result
         return wrapper
 
@@ -105,18 +85,22 @@ class Metrics:
             if metrics_collect_activated:
                 end_time = time.time()
                 execution_time = end_time - start_time
-                instance.fnc_exec_buffer.append((func.__module__, func.__name__, execution_time))
-                if len(instance.fnc_exec_buffer) >= instance.batch_size:
-                    await instance.perform_batch_insert()
+                try:
+                    instance.c.execute("INSERT INTO fnc_exec (module_name, function_name, execution_time) VALUES (?, ?, ?)",
+                                       (func.__module__, func.__name__, execution_time))
+                except sqlite3.OperationalError:
+                    return result  # TODO - Log error instead
             return result
         return wrapper
 
     @track_sync_fnc_exec
     def track_api_call(self, endpoint: str, params: dict, cache_hit: bool):
         if metrics_collect_activated:
-            self.api_calls_buffer.append((endpoint, str(params), 1 if cache_hit else 0))
-            if len(self.api_calls_buffer) >= self.batch_size:
-                asyncio.create_task(self.perform_batch_insert())
+            try:
+                self.c.execute("INSERT INTO api_calls (endpoint, params, cache_hit) VALUES (?, ?, ?)",
+                               (endpoint, str(params), 1 if cache_hit else 0))
+            except sqlite3.OperationalError:
+                return  # TODO - Log error instead
 
     @track_sync_fnc_exec
     def fetch_fnc_exec(self):
@@ -141,10 +125,12 @@ class Metrics:
 
     @track_sync_fnc_exec
     def remove_all_metrics(self):
-        self.c.execute('DELETE FROM api_calls')
-        self.c.execute('DELETE FROM fnc_exec')
-        self.conn.commit()
+        try:
+            self.c.execute('DELETE FROM api_calls')
+            self.c.execute('DELETE FROM fnc_exec')
+            self.conn.commit()
+        except sqlite3.OperationalError:
+            return  # TODO - Log error instead
 
-    async def close(self):
-        await self.perform_batch_insert()  # Ensure all buffered data is written before closing
+    def close(self):
         self.conn.close()
