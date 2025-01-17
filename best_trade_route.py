@@ -13,14 +13,17 @@ from config_manager import ConfigManager
 from trade_tab import TradeTab
 from translation_manager import TranslationManager
 from tools import create_async_callback, days_difference_from_now, translate
+from tools import progress_qprogressbar
 import traceback
 from metrics import Metrics
+from global_variables import distance_related_features
 
 
 class BestTradeRouteTab(QWidget):
     _lock = asyncio.Lock()
     _initialized = asyncio.Event()
 
+    @Metrics.track_sync_fnc_exec
     def __init__(self, main_widget):
         super().__init__()
         self.main_widget = main_widget
@@ -59,6 +62,7 @@ class BestTradeRouteTab(QWidget):
                 await self.init_ui()
                 self._initialized.set()
 
+    @Metrics.track_async_fnc_exec
     async def ensure_initialized(self):
         if not self._initialized.is_set():
             await self.initialize()
@@ -165,13 +169,14 @@ class BestTradeRouteTab(QWidget):
                                            + " (" + await translate("uec") + ")", "investment")
         self.sorting_options_combo.addItem(await translate("trade_columns_buy_scu")
                                            + " (" + await translate("unit_qty") + ")", "buy_scu")
-        self.sorting_options_combo.addItem(await translate("total_margin_by_distance")
-                                           + " (" + await translate("uec") + "/" + await translate("km") + ")",
-                                           "total_margin_by_distance")
-        self.sorting_options_combo.addItem(await translate("unit_margin_by_distance")
-                                           + " (" + await translate("uec") + "/" + await translate("scu")
-                                           + "/" + await translate("km") + ")",
-                                           "unit_margin_by_distance")
+        if distance_related_features:
+            self.sorting_options_combo.addItem(await translate("total_margin_by_distance")
+                                               + " (" + await translate("uec") + "/" + await translate("km") + ")",
+                                               "total_margin_by_distance")
+            self.sorting_options_combo.addItem(await translate("unit_margin_by_distance")
+                                               + " (" + await translate("uec") + "/" + await translate("scu")
+                                               + "/" + await translate("km") + ")",
+                                               "unit_margin_by_distance")
         self.sorting_options_combo.setCurrentIndex(0)
         self.sorting_options_combo.currentIndexChanged.connect(
             lambda: asyncio.ensure_future(self.update_page_items())
@@ -350,10 +355,10 @@ class BestTradeRouteTab(QWidget):
         self.progress_bar.setValue(current_progress)
         max_progress = 7
         self.main_progress_bar.setMaximum(max_progress)
-        self.main_progress_bar.setValue(current_progress)
-        self.main_progress_bar.setFormat(await translate("main_progress_step")
-                                         + f" {current_progress}/{max_progress}: "
-                                         + await translate("main_progress_loading_departure_planets"))
+        translate_main_step = await translate("main_progress_step")
+        progress_qprogressbar(self.main_progress_bar, current_progress,
+                              f"{translate_main_step} {current_progress}/{max_progress}: "
+                              + await translate("main_progress_loading_departure_planets"))
         try:
             # [Recover entry parameters]
             departure_system_id, departure_planet_id, destination_system_id, destination_planet_id = \
@@ -366,10 +371,9 @@ class BestTradeRouteTab(QWidget):
             departure_planets = await self.get_planets_from_single_ids(departure_system_id, departure_planet_id)
             self.logger.info("%s Departure Planets found.", len(departure_planets))
             current_progress += 1
-            self.main_progress_bar.setValue(current_progress)
-            self.main_progress_bar.setFormat(await translate("main_progress_step")
-                                             + f" {current_progress}/{max_progress}: "
-                                             + await translate("main_progress_loading_destination_systems"))
+            progress_qprogressbar(self.main_progress_bar, current_progress,
+                                  f"{translate_main_step} {current_progress}/{max_progress}: "
+                                  + await translate("main_progress_loading_destination_systems"))
             destination_systems = []
             if not destination_system_id:
                 destination_systems = await self.api.fetch_systems_from_origin_system(departure_system_id, max_bounce=2)
@@ -377,10 +381,9 @@ class BestTradeRouteTab(QWidget):
             else:
                 destination_systems = await self.api.fetch_system(destination_system_id)
             current_progress += 1
-            self.main_progress_bar.setValue(current_progress)
-            self.main_progress_bar.setFormat(await translate("main_progress_step")
-                                             + f" {current_progress}/{max_progress}: "
-                                             + await translate("main_progress_loading_destination_planets"))
+            progress_qprogressbar(self.main_progress_bar, current_progress,
+                                  f"{translate_main_step} {current_progress}/{max_progress}: "
+                                  + await translate("main_progress_loading_destination_planets"))
             destination_planets = []
             universe = len(destination_systems) if destination_planet_id != "unknown_planet" else 1
             self.progress_bar.setMaximum(universe)
@@ -403,10 +406,9 @@ class BestTradeRouteTab(QWidget):
                 action_progress += 1
                 self.progress_bar.setValue(action_progress)
             current_progress += 1
-            self.main_progress_bar.setValue(current_progress)
-            self.main_progress_bar.setFormat(await translate("main_progress_step")
-                                             + f" {current_progress}/{max_progress}: "
-                                             + await translate("main_progress_loading_departure_terminals"))
+            progress_qprogressbar(self.main_progress_bar, current_progress,
+                                  f"{translate_main_step} {current_progress}/{max_progress}: "
+                                  + await translate("main_progress_loading_departure_terminals"))
             # [Recover departure/destination terminals and commodities]
             departure_terminals = await self.get_terminals_from_planets(departure_planets,
                                                                         filter_public_hangars,
@@ -414,17 +416,15 @@ class BestTradeRouteTab(QWidget):
                                                                         departure_system_id)
             self.logger.info("%s Departure Terminals found.", len(departure_terminals))
             current_progress += 1
-            self.main_progress_bar.setValue(current_progress)
-            self.main_progress_bar.setFormat(await translate("main_progress_step")
-                                             + f" {current_progress}/{max_progress}: "
-                                             + await translate("main_progress_loading_buy_commodities"))
+            progress_qprogressbar(self.main_progress_bar, current_progress,
+                                  f"{translate_main_step} {current_progress}/{max_progress}: "
+                                  + await translate("main_progress_loading_buy_commodities"))
             buy_commodities = await self.get_buy_commodities_from_terminals(departure_terminals)
             self.logger.info("%s Buy Commodities found.", len(buy_commodities))
             current_progress += 1
-            self.main_progress_bar.setValue(current_progress)
-            self.main_progress_bar.setFormat(await translate("main_progress_step")
-                                             + f" {current_progress}/{max_progress}: "
-                                             + await translate("main_progress_loading_sell_commodities"))
+            progress_qprogressbar(self.main_progress_bar, current_progress,
+                                  f"{translate_main_step} {current_progress}/{max_progress}: "
+                                  + await translate("main_progress_loading_sell_commodities"))
             sell_commodities = await self.get_sell_commodities_from_commodities_prices(buy_commodities,
                                                                                        destination_planets,
                                                                                        filter_public_hangars,
@@ -432,17 +432,16 @@ class BestTradeRouteTab(QWidget):
                                                                                        destination_systems)
             self.logger.info("%s Sell Commodities found.", len(sell_commodities))
             current_progress += 1
-            self.main_progress_bar.setValue(current_progress)
-            self.main_progress_bar.setFormat(await translate("main_progress_step")
-                                             + f" {current_progress}/{max_progress}: "
-                                             + await translate("main_progress_calculating_trade_routes"))
+            progress_qprogressbar(self.main_progress_bar, current_progress,
+                                  f"{translate_main_step} {current_progress}/{max_progress}: "
+                                  + await translate("main_progress_calculating_trade_routes"))
 
             self.current_trades = await self.calculate_trade_routes_rework(buy_commodities, sell_commodities,
                                                                            ignore_stocks, ignore_demand)
             self.logger.info("%s Trade routes found.", len(self.current_trades))
             current_progress += 1
-            self.main_progress_bar.setValue(current_progress)
-            self.main_progress_bar.setFormat(await translate("main_progress_finished_calculating_trade_routes"))
+            progress_qprogressbar(self.main_progress_bar, current_progress,
+                                  await translate("main_progress_finished_calculating_trade_routes"))
             self.logger.info("Finished calculating Best Trade Routes : %s found", len(self.current_trades))
         except ValueError as e:
             self.logger.warning("Input Error: %s", e)
@@ -504,20 +503,20 @@ class BestTradeRouteTab(QWidget):
             returned_terminals.extend([terminal for terminal in await self.api.fetch_terminals_by_system(filtering_system)
                                        if terminal.get("id_planet") == 0])
             action_progress += 1
-            self.progress_bar.setValue(action_progress)
+            progress_qprogressbar(self.progress_bar, action_progress)
         else:
             self.progress_bar.setMaximum(universe)
             action_progress = 0
             if universe > 1 and filtering_system:
                 returned_terminals.extend([terminal for terminal in await self.api.fetch_terminals_by_system(filtering_system)
                                            if terminal.get("id_planet") == 0])
+            translate_step = await translate("progress_step")
+            translate_fetching = await translate("progress_fetching_terminals_from_planets")
             for planet in filtering_planets:
                 returned_terminals.extend((await self.api.fetch_terminals_by_planet(planet["id"])))
                 action_progress += 1
-                self.progress_bar.setValue(action_progress)
-                self.progress_bar.setFormat(await translate("progress_step")
-                                            + f" {action_progress}/{universe}: "
-                                            + await translate("progress_fetching_terminals_from_planets"))
+                progress_qprogressbar(self.progress_bar, action_progress,
+                                      f"{translate_step} {action_progress}/{universe}: {translate_fetching}")
         for terminal in returned_terminals:
             if ((not filter_public_hangars
                 or (terminal["city_name"]
@@ -535,15 +534,15 @@ class BestTradeRouteTab(QWidget):
         self.progress_bar.setMaximum(universe)
         action_progress = 0
         # Get all BUY commodities (for each departure terminals) from /commodities_prices
+        translate_step = await translate("progress_step")
+        translate_fetching = await translate("progress_fetching_commodities_from_terminals")
         for departure_terminal in departure_terminals:
             buy_commodities.extend([commodity for commodity in
                                     await self.api.fetch_commodities_from_terminal(departure_terminal["id"])
                                     if commodity.get("price_buy") > 0])
             action_progress += 1
-            self.progress_bar.setValue(action_progress)
-            self.progress_bar.setFormat(await translate("progress_step")
-                                        + f" {action_progress}/{universe}: "
-                                        + await translate("progress_fetching_commodities_from_terminals"))
+            progress_qprogressbar(self.progress_bar, action_progress,
+                                  f"{translate_step} {action_progress}/{universe}: {translate_fetching}")
         self.logger.info("%s Buy Commodities found.", len(buy_commodities))
         return buy_commodities
 
@@ -581,6 +580,8 @@ class BestTradeRouteTab(QWidget):
         universe = len(grouped_buy_commodities_ids)
         self.progress_bar.setMaximum(universe)
         action_progress = 0
+        translate_progress = await translate("progress_step")
+        translate_progress_fetching = await translate("progress_fetching_sell_commodities_by_unique_commodity")
         # Get all SELL commodities (for each unique BUY commodity) from /commodities_prices
         for grouped_buy_id in grouped_buy_commodities_ids:
             unfiltered_commodities = await self.api.fetch_commodities_by_id(grouped_buy_id)
@@ -596,10 +597,8 @@ class BestTradeRouteTab(QWidget):
                     self.append_unfiltered_commodity(unfiltered_commodity, sell_commodities,
                                                      destination_planets, destination_systems)
             action_progress += 1
-            self.progress_bar.setValue(action_progress)
-            self.progress_bar.setFormat(await translate("progress_step")
-                                        + f" {action_progress}/{universe}: "
-                                        + await translate("progress_fetching_sell_commodities_by_unique_commodity"))
+            progress_qprogressbar(self.progress_bar, action_progress,
+                                  f"{translate_progress} {action_progress}/{universe}: {translate_progress_fetching}")
         self.logger.info("%s Sell Commodities found.", len(sell_commodities))
         return sell_commodities
 
@@ -608,28 +607,43 @@ class BestTradeRouteTab(QWidget):
         await self.ensure_initialized()
         # [Calculate trade routes]
         trade_routes = []
+        trade_count = 0
         universe = len(buy_commodities) * len(sell_commodities)
         self.progress_bar.setMaximum(universe)
         action_progress = 0
 
+        @Metrics.track_sync_fnc_exec
+        def _get_exclusive(buy_commodity, sell_commodity):
+            buy_id = buy_commodity.get("id_commodity")
+            sell_id = sell_commodity.get("id_commodity")
+            buy_term = buy_commodity.get("id_terminal")
+            sell_term = sell_commodity.get("id_terminal")
+            return buy_id, sell_id, buy_term, sell_term
+
+        @Metrics.track_async_fnc_exec
+        async def _append_route(route, trade_count):
+            trade_routes.append(route)
+            if (trade_count % 10) == 0:
+                await self.display_trade_routes(trade_routes, self.columns)
+
         # For each BUY commodity / For each SELL commodity > Populate Trade routes (Display as it is populated)
+        progress_text = await translate("progress_step")
+        progress_processing = await translate("progress_processing_possible_trade_route")
         for buy_commodity in buy_commodities:
             for sell_commodity in sell_commodities:
-                self.progress_bar.setValue(action_progress)
-                self.progress_bar.setFormat(await translate("progress_step")
-                                            + f" {action_progress}/{universe}: "
-                                            + await translate("progress_processing_possible_trade_route"))
+                if (action_progress % 100) == 0:  # Change progress bar each 100 items parsed
+                    progress_qprogressbar(self.progress_bar, action_progress,
+                                          f"{progress_text} {action_progress}/{universe}: {progress_processing}")
                 action_progress += 1
-                if buy_commodity["id_commodity"] != sell_commodity["id_commodity"]:
-                    continue
-                if buy_commodity["id_terminal"] == sell_commodity["id_terminal"]:
+                buy_id, sell_id, buy_term, sell_term = _get_exclusive(buy_commodity, sell_commodity)
+                if (((buy_id != sell_id)
+                     or (buy_term == sell_term))):
                     continue
                 route = await self.process_single_trade_route(buy_commodity, sell_commodity, ignore_stocks, ignore_demand)
                 if route:
-                    trade_routes.append(route)
-                    await self.display_trade_routes(trade_routes, self.columns)
-                    QApplication.processEvents()
-        self.progress_bar.setValue(action_progress)
+                    trade_count += 1
+                    await _append_route(route, trade_count)
+        progress_qprogressbar(self.progress_bar, action_progress)
         await self.display_trade_routes(trade_routes, self.columns, quick=False)
         QApplication.processEvents()
         return trade_routes
@@ -714,8 +728,11 @@ class BestTradeRouteTab(QWidget):
         if (total_margin <= 0) or (total_margin < min_trade_profit):
             return route
         profit_margin = unit_margin / price_buy
-        distance = await self.api.fetch_distance(buy_commodity["id_terminal"],
-                                                 sell_commodity["id_terminal"])
+        if distance_related_features:
+            distance = await self.api.fetch_distance(buy_commodity["id_terminal"],
+                                                     sell_commodity["id_terminal"])
+        else:
+            distance = 1
         total_margin_by_distance = total_margin / distance
         unit_margin_by_distance = unit_margin / distance
 
