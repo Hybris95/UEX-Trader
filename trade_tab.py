@@ -10,6 +10,7 @@ from config_manager import ConfigManager
 from translation_manager import TranslationManager
 from tools import translate
 import traceback
+from metrics import Metrics
 
 
 class TradeTab(QWidget):
@@ -26,6 +27,7 @@ class TradeTab(QWidget):
         self._unfiltered_terminals = []
         asyncio.ensure_future(self.load_systems())
 
+    @Metrics.track_async_fnc_exec
     async def initialize(self):
         async with self._lock:
             if self.config_manager is None or self.translation_manager is None or self.api is None:
@@ -44,6 +46,7 @@ class TradeTab(QWidget):
         await self.ensure_initialized()
         return self
 
+    @Metrics.track_async_fnc_exec
     async def init_ui(self):
         main_layout = QVBoxLayout()
         system_label = QLabel(await translate("select_system") + ":")
@@ -107,6 +110,7 @@ class TradeTab(QWidget):
 
         self.setLayout(main_layout)
 
+    @Metrics.track_async_fnc_exec
     async def load_systems(self):
         try:
             await self.ensure_initialized()
@@ -128,6 +132,7 @@ class TradeTab(QWidget):
         finally:
             self.system_combo.blockSignals(False)
 
+    @Metrics.track_async_fnc_exec
     async def update_planets(self):
         await self.ensure_initialized()
         self.planet_combo.clear()
@@ -147,21 +152,22 @@ class TradeTab(QWidget):
                                              await translate("error_failed_to_load_planets") + ": " + str(e),
                                              QMessageBox.Icon.Critical)
 
+    @Metrics.track_async_fnc_exec
     async def update_terminals(self):
         await self.ensure_initialized()
         self.terminal_combo.clear()
         self.terminal_filter_input.clear()
         self._unfiltered_terminals = []
         planet_id = self.planet_combo.currentData()
-        system_id = self.system_combo.currentData()
+        system = self.system_combo.currentData()
         try:
             if not planet_id:
-                if system_id:
-                    self._unfiltered_terminals = [terminal for terminal in (await self.api.fetch_terminals(system_id))
+                if system:
+                    self._unfiltered_terminals = [terminal for terminal in (await self.api.fetch_terminals_by_system(system))
                                                   if terminal.get("id_planet") == 0]
-                    logging.info("Terminals loaded successfully for system ID (Unknown planet): %s", system_id)
+                    logging.info("Terminals loaded successfully for system ID (Unknown planet): %s", system)
             else:
-                self._unfiltered_terminals = await self.api.fetch_terminals_from_planet(planet_id)
+                self._unfiltered_terminals = await self.api.fetch_terminals_by_planet(planet_id)
                 logging.info("Terminals loaded successfully for planet ID : %s", planet_id)
         except Exception as e:
             logging.error("Failed to load terminals: %s", e)
@@ -174,6 +180,7 @@ class TradeTab(QWidget):
             self.filter_terminals()
         return self._unfiltered_terminals
 
+    @Metrics.track_sync_fnc_exec
     def filter_terminals(self, terminal_id=None):
         filter_text = self.terminal_filter_input.text().lower()
         self.terminal_combo.clear()
@@ -185,6 +192,7 @@ class TradeTab(QWidget):
             if index != -1:
                 self.terminal_combo.setCurrentIndex(index)
 
+    @Metrics.track_async_fnc_exec
     async def update_commodities(self):
         await self.ensure_initialized()
         self.commodity_buy_list.clear()
@@ -214,6 +222,7 @@ class TradeTab(QWidget):
                                              await translate("error_failed_to_load_commodities") + ": " + str(e),
                                              QMessageBox.Icon.Critical)
 
+    @Metrics.track_sync_fnc_exec
     def update_buy_price(self, current):
         if current:
             commodity_id = current.data(Qt.UserRole)
@@ -226,6 +235,7 @@ class TradeTab(QWidget):
             self.buy_price_input.clear()
             self.buy_button.setEnabled(False)
 
+    @Metrics.track_sync_fnc_exec
     def update_sell_price(self, current):
         if current:
             commodity_id = current.data(Qt.UserRole)
@@ -238,12 +248,15 @@ class TradeTab(QWidget):
             self.sell_price_input.clear()
             self.sell_button.setEnabled(False)
 
+    @Metrics.track_async_fnc_exec
     async def buy_commodity(self):
         await self.perform_trade(self.commodity_buy_list, is_buy=True)
 
+    @Metrics.track_async_fnc_exec
     async def sell_commodity(self):
         await self.perform_trade(self.commodity_sell_list, is_buy=False)
 
+    @Metrics.track_async_fnc_exec
     async def perform_trade(self, commodity_list, is_buy):
         await self.ensure_initialized()
         selected_item = commodity_list.currentItem()
@@ -303,6 +316,7 @@ class TradeTab(QWidget):
                                              await translate("error_generic") + ": " + str(e),
                                              QMessageBox.Icon.Critical)
 
+    @Metrics.track_async_fnc_exec
     async def validate_trade_inputs(self, terminal_id, id_commodity, quantity, price):
         await self.ensure_initialized()
         if not all([terminal_id, id_commodity, quantity, price]):
@@ -312,13 +326,15 @@ class TradeTab(QWidget):
         if not re.match(r'^\d+(\.\d+)?$', price):
             raise ValueError(await translate("price") + " " + await translate("error_input_invalid_number"))
 
+    @Metrics.track_async_fnc_exec
     async def validate_terminal_and_commodity(self, planet_id, terminal_id, id_commodity):
         await self.ensure_initialized()
-        if not any(terminal.get('id') == terminal_id for terminal in (await self.api.fetch_terminals_from_planet(planet_id))):
+        if not any(terminal.get('id') == terminal_id for terminal in (await self.api.fetch_terminals_by_planet(planet_id))):
             raise ValueError(await translate("error_input_invalid_terminal"))
         if not any(commodity["id_commodity"] == id_commodity for commodity in self._current_terminal_commodities):
             raise ValueError(await translate("error_input_commodity_doesnt_exist"))
 
+    @Metrics.track_async_fnc_exec
     async def handle_trade_result(self, result, logger):
         await self.ensure_initialized()
         if result and "data" in result and "id_user_trade" in result["data"]:
@@ -335,6 +351,7 @@ class TradeTab(QWidget):
                                              await translate("error_trade_failed") + f": {error_message}",
                                              QMessageBox.Icon.Critical)
 
+    @Metrics.track_async_fnc_exec
     async def select_trade_route(self, trade_route, is_buy):
         logger = logging.getLogger(__name__)
         action = "buy" if is_buy else "sell"
@@ -383,6 +400,7 @@ class TradeTab(QWidget):
         self.planet_combo.blockSignals(False)
         self.system_combo.blockSignals(False)
 
+    @Metrics.track_sync_fnc_exec
     def set_gui_enabled(self, enabled):
         for lineedit in self.findChildren(QLineEdit):
             lineedit.setEnabled(enabled)

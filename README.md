@@ -94,6 +94,14 @@ python main.py
 - **Version:** Select the Game Version that will be used to filter the commodities values
 - **Cache TTL:** Enter the number of seconds you want to cache to be held (by default: 30min)
 
+### Migrate configuration from <=v0.6.0 to >=0.6.1
+
+- Copy your old config.ini file from your preview installation
+- Download, start and close the new >=0.6.1 UEX-Trader
+- Copy your old config.ini file to the newly created user_config_folder
+($HOME/.config/UEX-Trader on Linux, %localappdata%\UEX-Trader\UEX-Trader on Windows)
+- Start again the new UEX-Trader
+
 ## Use Cases
 
 ### Trading Commodities

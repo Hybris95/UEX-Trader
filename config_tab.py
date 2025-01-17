@@ -2,6 +2,7 @@
 from PyQt5.QtWidgets import (
     QWidget,
     QVBoxLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
@@ -15,6 +16,7 @@ from translation_manager import TranslationManager
 import asyncio
 from tools import translate
 from api import API
+from metrics import Metrics
 
 
 class ConfigTab(QWidget):
@@ -31,6 +33,7 @@ class ConfigTab(QWidget):
         self.translation_manager = None
         self.api = None
 
+    @Metrics.track_async_fnc_exec
     async def initialize(self):
         async with self._lock:
             if self.config_manager is None or self.translation_manager is None or self.main_vboxlayout is None:
@@ -49,6 +52,7 @@ class ConfigTab(QWidget):
         await self.ensure_initialized()
         return self
 
+    @Metrics.track_async_fnc_exec
     async def prep_api_key(self):
         # API KEY
         self.api_key_vboxlayout = QVBoxLayout()
@@ -70,6 +74,7 @@ class ConfigTab(QWidget):
         self.api_key_vboxlayout.addWidget(self.api_key_input)
         self.api_key_vboxlayout.addWidget(self.show_api_key_button)
 
+    @Metrics.track_async_fnc_exec
     async def prep_secret_key(self):
         # SECRET KEY
         self.secret_key_vboxlayout = QVBoxLayout()
@@ -92,16 +97,19 @@ class ConfigTab(QWidget):
         self.secret_key_vboxlayout.addWidget(self.secret_key_input)
         self.secret_key_vboxlayout.addWidget(self.show_secret_key_button)
 
+    @Metrics.track_async_fnc_exec
     async def prep_is_production(self):
         self.is_production_checkbox = QCheckBox(await translate("config_isproduction"))
         self.is_production_checkbox.setChecked(self.config_manager.get_is_production())
         self.is_production_checkbox.stateChanged.connect(self.update_is_production)
 
+    @Metrics.track_async_fnc_exec
     async def prep_debug(self):
         self.debug_checkbox = QCheckBox(await translate("config_debugmode"))
         self.debug_checkbox.setChecked(self.config_manager.get_debug())
         self.debug_checkbox.stateChanged.connect(self.update_debug_mode)
 
+    @Metrics.track_async_fnc_exec
     async def prep_appearance(self):
         self.appearance_label = QLabel(await translate("config_appearancemode") + ":")
         self.appearance_input = QComboBox()
@@ -110,6 +118,7 @@ class ConfigTab(QWidget):
         self.appearance_input.setCurrentIndex(self.appearance_input.findData(self.config_manager.get_appearance_mode()))
         self.appearance_input.currentIndexChanged.connect(self.update_appearance_mode)
 
+    @Metrics.track_async_fnc_exec
     async def prep_language(self):
         self.language_label = QLabel(await translate("config_language") + ":")
         self.language_input = QComboBox()
@@ -119,6 +128,7 @@ class ConfigTab(QWidget):
         self.language_input.setCurrentIndex(self.language_input.findData(self.config_manager.get_lang()))
         self.language_input.currentIndexChanged.connect(self.update_lang)
 
+    @Metrics.track_async_fnc_exec
     async def prep_version(self):
         self.version_label = QLabel(await translate("config_version") + ":")
         self.version_input = QComboBox()
@@ -128,27 +138,43 @@ class ConfigTab(QWidget):
         self.version_input.setCurrentIndex(self.version_input.findData(self.config_manager.get_version()))
         self.version_input.currentIndexChanged.connect(self.update_version)
 
-    async def prep_cache_ttl(self):
+    @Metrics.track_async_fnc_exec
+    async def prep_cache_options(self):
         self.cache_ttl_vboxlayout = QVBoxLayout()
+
+        self.cache_options_label = QLabel(await translate("config_cache_options") + ":")
+
+        self.cache_ttl_hbox = QHBoxLayout()
         self.cache_ttl_label = QLabel(await translate("config_cache_ttl") + ":")
         self.cache_ttl_input = QLineEdit(self.config_manager.get_ttl())
         self.cache_ttl_input.editingFinished.connect(lambda: asyncio.create_task(self.update_cache_ttl()))
-        self.cache_ttl_vboxlayout.addWidget(self.cache_ttl_label)
-        self.cache_ttl_vboxlayout.addWidget(self.cache_ttl_input)
 
+        self.clear_cache_button = QPushButton(await translate("clear_cache"), self)
+        # self.clear_cache_button.setFixedSize(30, 30)  # Adjust size as needed
+        self.clear_cache_button.pressed.connect(self.clear_cache)
+        self.clear_cache_button.released.connect(self.clear_cache)
+
+        self.cache_ttl_hbox.addWidget(self.cache_ttl_label)
+        self.cache_ttl_hbox.addWidget(self.cache_ttl_input)
+        self.cache_ttl_vboxlayout.addWidget(self.cache_options_label)
+        self.cache_ttl_vboxlayout.addLayout(self.cache_ttl_hbox)
+        self.cache_ttl_vboxlayout.addWidget(self.clear_cache_button)
+
+    @Metrics.track_async_fnc_exec
     async def populate_main_layout(self):
         self.main_vboxlayout.addLayout(self.api_key_vboxlayout)
         self.main_vboxlayout.addLayout(self.secret_key_vboxlayout)
         self.main_vboxlayout.addWidget(self.is_production_checkbox)
         self.main_vboxlayout.addWidget(self.debug_checkbox)
+        self.main_vboxlayout.addLayout(self.cache_ttl_vboxlayout)
         self.main_vboxlayout.addWidget(self.appearance_label)
         self.main_vboxlayout.addWidget(self.appearance_input)
         self.main_vboxlayout.addWidget(self.language_label)
         self.main_vboxlayout.addWidget(self.language_input)
         self.main_vboxlayout.addWidget(self.version_label)
         self.main_vboxlayout.addWidget(self.version_input)
-        self.main_vboxlayout.addLayout(self.cache_ttl_vboxlayout)
 
+    @Metrics.track_async_fnc_exec
     async def init_ui(self):
         self.main_vboxlayout = QVBoxLayout()
         await self.prep_api_key()
@@ -156,51 +182,67 @@ class ConfigTab(QWidget):
         await self.prep_is_production()
         await self.prep_debug()
         await self.prep_appearance()
+        await self.prep_cache_options()
         self.update_appearance_mode()
         await self.prep_language()
         await self.prep_version()
-        await self.prep_cache_ttl()
         await self.populate_main_layout()
         self.setLayout(self.main_vboxlayout)
 
+    @Metrics.track_sync_fnc_exec
     def show_api_key(self):
         self.api_key_input.setEchoMode(QLineEdit.Normal)
 
+    @Metrics.track_sync_fnc_exec
     def hide_api_key(self):
         self.api_key_input.setEchoMode(QLineEdit.Password)
 
+    @Metrics.track_sync_fnc_exec
     def show_secret_key(self):
         self.secret_key_input.setEchoMode(QLineEdit.Normal)
 
+    @Metrics.track_sync_fnc_exec
     def hide_secret_key(self):
         self.secret_key_input.setEchoMode(QLineEdit.Password)
 
+    @Metrics.track_sync_fnc_exec
     def update_appearance_mode(self):
         new_appearance = self.appearance_input.currentData()
         self.config_manager.set_appearance_mode(new_appearance)
         asyncio.ensure_future(self.main_widget.apply_appearance_mode(new_appearance))
 
+    @Metrics.track_sync_fnc_exec
     def update_lang(self):
         new_lang = self.language_input.currentData()
         self.config_manager.set_lang(new_lang)
         asyncio.ensure_future(self.main_widget.init_ui())
 
+    @Metrics.track_sync_fnc_exec
     def update_version(self):
         new_version = self.version_input.currentData()
         asyncio.ensure_future(self.config_manager.set_version(new_version))
 
+    @Metrics.track_sync_fnc_exec
     def update_is_production(self):
         self.config_manager.set_is_production(self.is_production_checkbox.isChecked())
 
+    @Metrics.track_sync_fnc_exec
+    def clear_cache(self):
+        self.config_manager.clear_cache()
+
+    @Metrics.track_sync_fnc_exec
     def update_debug_mode(self):
         self.config_manager.set_debug(self.debug_checkbox.isChecked())
 
+    @Metrics.track_sync_fnc_exec
     def update_api_key(self):
         self.config_manager.set_api_key(self.api_key_input.text())
 
+    @Metrics.track_sync_fnc_exec
     def update_secret_key(self):
         self.config_manager.set_secret_key(self.secret_key_input.text())
 
+    @Metrics.track_async_fnc_exec
     async def update_cache_ttl(self):
         try:
             self.config_manager.set_ttl(self.cache_ttl_input.text())
@@ -210,6 +252,7 @@ class ConfigTab(QWidget):
             self.cache_ttl_input.setText(self.config_manager.get_ttl())
             self.cache_ttl_input.blockSignals(False)
 
+    @Metrics.track_sync_fnc_exec
     def set_gui_enabled(self, enabled):
         for lineedit in self.findChildren(QLineEdit):
             lineedit.setEnabled(enabled)
