@@ -91,21 +91,29 @@ class SQLiteCacheBackend:
 
     def __create_table(self):
         cur = self.con.cursor()
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS cache (
-                key TEXT PRIMARY KEY,
-                value TEXT,
-                timestamp TEXT
-            )
-        """)
-        self.con.commit()
-        cur.close()
+        try:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS cache (
+                    key TEXT PRIMARY KEY,
+                    value TEXT,
+                    timestamp TEXT
+                )
+            """)
+            self.con.commit()
+        except sqlite3.OperationalError:
+            return  # TODO - Log error instead
+        finally:
+            cur.close()
 
     def clear(self):
         cur = self.con.cursor()
-        cur.execute("DELETE FROM cache;")
-        self.con.commit()
-        cur.close()
+        try:
+            cur.execute("DELETE FROM cache;")
+            self.con.commit()
+        except sqlite3.OperationalError:
+            return  # TODO - Log error instead
+        finally:
+            cur.close()
 
     def clean_obsolete(self, ttl: int):
         # Calculate the threshold timestamp
@@ -114,12 +122,16 @@ class SQLiteCacheBackend:
 
         # Execute the DELETE statement
         cur = self.con.cursor()
-        cur.execute("""
-            DELETE FROM cache
-            WHERE timestamp < ?;
-        """, [threshold_time_iso])
-        self.con.commit()
-        cur.close()
+        try:
+            cur.execute("""
+                DELETE FROM cache
+                WHERE timestamp < ?;
+            """, [threshold_time_iso])
+            self.con.commit()
+        except sqlite3.OperationalError:
+            return  # TODO - Log error instead
+        finally:
+            cur.close()
 
     def __getitem__(self, key):
         cur = self.con.cursor()
@@ -140,23 +152,31 @@ class SQLiteCacheBackend:
 
     def __setitem__(self, key, value):
         cur = self.con.cursor()
-        cur.execute("""
-            INSERT INTO cache
-            VALUES (:key, :value, :ts)
-            ON CONFLICT(key) DO UPDATE SET value = :value, timestamp = :ts;
-        """, {
-            "key": key,
-            "value": json.dumps(value),
-            "ts": datetime.now().isoformat()
-        })
-        self.con.commit()
-        cur.close()
+        try:
+            cur.execute("""
+                INSERT INTO cache
+                VALUES (:key, :value, :ts)
+                ON CONFLICT(key) DO UPDATE SET value = :value, timestamp = :ts;
+            """, {
+                "key": key,
+                "value": json.dumps(value),
+                "ts": datetime.now().isoformat()
+            })
+            self.con.commit()
+        except sqlite3.OperationalError:
+            return  # TODO - Log error instead
+        finally:
+            cur.close()
 
     def __delitem__(self, key):
         cur = self.con.cursor()
-        cur.execute("DELETE FROM cache WHERE key = ?;", [key])
-        self.con.commit()
-        cur.close()
+        try:
+            cur.execute("DELETE FROM cache WHERE key = ?;", [key])
+            self.con.commit()
+        except sqlite3.OperationalError:
+            return  # TODO - Log error instead
+        finally:
+            cur.close()
 
     def __contains__(self, key):
         return self.__getitem__(key) is not None
