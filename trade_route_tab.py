@@ -16,6 +16,7 @@ from trade_tab import TradeTab
 from translation_manager import TranslationManager
 from tools import create_async_callback, days_difference_from_now, translate
 import traceback
+from metrics import Metrics
 
 
 class TradeRouteTab(QWidget):
@@ -34,6 +35,7 @@ class TradeRouteTab(QWidget):
         self.current_trades = []
         asyncio.ensure_future(self.load_systems())
 
+    @Metrics.track_async_fnc_exec
     async def initialize(self):
         async with self._lock:
             if self.config_manager is None or self.translation_manager is None or self.api is None or self.columns is None:
@@ -52,6 +54,7 @@ class TradeRouteTab(QWidget):
         await self.ensure_initialized()
         return self
 
+    @Metrics.track_async_fnc_exec
     async def init_ui(self):
         layout = QVBoxLayout()
         self.max_scu_input = QLineEdit()
@@ -182,6 +185,7 @@ class TradeRouteTab(QWidget):
         self.setLayout(layout)
         await self.define_columns()
 
+    @Metrics.track_async_fnc_exec
     async def load_systems(self):
         try:
             await self.ensure_initialized()
@@ -203,6 +207,7 @@ class TradeRouteTab(QWidget):
         finally:
             self.departure_system_combo.blockSignals(False)
 
+    @Metrics.track_async_fnc_exec
     async def update_planets(self):
         await self.ensure_initialized()
         self.departure_planet_combo.clear()
@@ -225,6 +230,7 @@ class TradeRouteTab(QWidget):
                                              await translate("error_failed_to_load_planets") + f": {e}",
                                              QMessageBox.Icon.Critical)
 
+    @Metrics.track_async_fnc_exec
     async def update_terminals(self):
         await self.ensure_initialized()
         self.departure_terminal_combo.clear()
@@ -251,10 +257,12 @@ class TradeRouteTab(QWidget):
         finally:
             self.filter_terminals()
 
+    @Metrics.track_async_fnc_exec
     async def update_page_items(self):
         await self.ensure_initialized()
         await self.update_trade_route_table(self.current_trades, self.columns, quick=False)
 
+    @Metrics.track_sync_fnc_exec
     def filter_terminals(self):
         filter_text = self.terminal_filter_input.text().lower()
         self.departure_terminal_combo.clear()
@@ -262,6 +270,7 @@ class TradeRouteTab(QWidget):
             if filter_text in terminal["name"].lower():
                 self.departure_terminal_combo.addItem(terminal["name"], terminal["id"])
 
+    @Metrics.track_async_fnc_exec
     async def define_columns(self):
         self.columns = [
             await translate("trade_columns_destination"),
@@ -280,6 +289,7 @@ class TradeRouteTab(QWidget):
         self.trade_route_table.setColumnCount(len(self.columns))
         self.trade_route_table.setHorizontalHeaderLabels(self.columns)
 
+    @Metrics.track_async_fnc_exec
     async def find_trade_routes(self):
         await self.ensure_initialized()
         self.logger.log(logging.INFO, "Searching for a new Trade Route")
@@ -313,6 +323,7 @@ class TradeRouteTab(QWidget):
             self.progress_bar.setVisible(False)
             self.main_progress_bar.setVisible(False)
 
+    @Metrics.track_sync_fnc_exec
     def get_validated_inputs(self):
         max_scu = int(self.max_scu_input.text()) if self.max_scu_input.text() else sys.maxsize
         max_investment = float(self.max_investment_input.text()) if self.max_investment_input.text() else sys.maxsize
@@ -320,12 +331,14 @@ class TradeRouteTab(QWidget):
         min_trade_profit = int(self.min_trade_profit_input.text()) if self.min_trade_profit_input.text() else 0
         return max_scu, max_investment, max_outdated_days, min_trade_profit
 
+    @Metrics.track_sync_fnc_exec
     def get_ids(self):
         departure_system_id = self.departure_system_combo.currentData()
         departure_planet_id = self.departure_planet_combo.currentData()
         departure_terminal_id = self.departure_terminal_combo.currentData()
         return departure_system_id, departure_planet_id, departure_terminal_id
 
+    @Metrics.track_async_fnc_exec
     async def validate_inputs(self):
         await self.ensure_initialized()
         if not re.match(r'^\d+$', self.max_scu_input.text()) and self.max_scu_input.text() != "":
@@ -344,6 +357,7 @@ class TradeRouteTab(QWidget):
             raise ValueError(await translate("error_input_select_dpt"))
         return
 
+    @Metrics.track_async_fnc_exec
     async def fetch_and_process_departure_commodities(self):
         await self.ensure_initialized()
         trade_routes = []
@@ -370,6 +384,7 @@ class TradeRouteTab(QWidget):
         self.main_progress_bar.setValue(action_progress)
         return trade_routes
 
+    @Metrics.track_async_fnc_exec
     async def process_arrival_commodities(self, arrival_commodities, departure_commodity):
         await self.ensure_initialized()
         departure_system_id, departure_planet_id, departure_terminal_id = self.get_ids()
@@ -400,6 +415,7 @@ class TradeRouteTab(QWidget):
         self.progress_bar.setValue(action_progress)
         return trade_routes
 
+    @Metrics.track_async_fnc_exec
     async def calculate_trade_route_details(self, arrival_commodity, departure_commodity):
         await self.ensure_initialized()
         max_scu, max_investment, max_outdated_days, min_trade_profit = self.get_validated_inputs()
@@ -476,6 +492,7 @@ class TradeRouteTab(QWidget):
             "unit_margin_by_distance": str(unit_margin_by_distance)
         }
 
+    @Metrics.track_async_fnc_exec
     async def update_trade_route_table(self, trade_routes, columns, quick=True):
         await self.ensure_initialized()
         nb_items = 5 if quick else self.page_items_combo.currentData()
@@ -508,6 +525,7 @@ class TradeRouteTab(QWidget):
         self.trade_route_table.resizeColumnsToContents()
         self.logger.log(logging.INFO, "Finished calculating Trade routes")
 
+    @Metrics.track_async_fnc_exec
     async def select_to_buy(self, trade_route):
         await self.ensure_initialized()
         self.logger.log(logging.INFO, "Selected route to buy")
@@ -520,6 +538,7 @@ class TradeRouteTab(QWidget):
                                              await translate("error_generic"),
                                              QMessageBox.Icon.Critical)
 
+    @Metrics.track_async_fnc_exec
     async def select_to_sell(self, trade_route):
         await self.ensure_initialized()
         self.logger.log(logging.INFO, "Selected route to sell")
@@ -532,6 +551,7 @@ class TradeRouteTab(QWidget):
                                              await translate("error_generic"),
                                              QMessageBox.Icon.Critical)
 
+    @Metrics.track_sync_fnc_exec
     def set_gui_enabled(self, enabled):
         for lineedit in self.findChildren(QLineEdit):
             lineedit.setEnabled(enabled)

@@ -9,6 +9,7 @@ from config_manager import ConfigManager
 from translation_manager import TranslationManager
 from tools import translate, create_async_callback
 from commodity import Commodity
+from metrics import Metrics
 
 
 class SubmitTab(QWidget):
@@ -26,6 +27,7 @@ class SubmitTab(QWidget):
         asyncio.ensure_future(self.load_systems())
         asyncio.ensure_future(self.load_commodities())
 
+    @Metrics.track_async_fnc_exec
     async def initialize(self):
         async with self._lock:
             if not self._initialized.is_set():
@@ -35,11 +37,13 @@ class SubmitTab(QWidget):
                 await self.init_ui()
                 self._initialized.set()
 
+    @Metrics.track_async_fnc_exec
     async def ensure_initialized(self):
         if not self._initialized.is_set():
             await self.initialize()
         await self._initialized.wait()
 
+    @Metrics.track_async_fnc_exec
     async def init_ui(self):
         self.main_layout = QVBoxLayout()
         await self.prep_system()
@@ -51,16 +55,19 @@ class SubmitTab(QWidget):
         self.add_widgets()
         self.setLayout(self.main_layout)
 
+    @Metrics.track_async_fnc_exec
     async def prep_system(self):
         self.system_label = QLabel(await translate("select_system") + ":")
         self.system_combo = QComboBox()
         self.system_combo.currentIndexChanged.connect(lambda: asyncio.ensure_future(self.update_planets()))
 
+    @Metrics.track_async_fnc_exec
     async def prep_planet(self):
         self.planet_label = QLabel(await translate("select_planet") + ":")
         self.planet_combo = QComboBox()
         self.planet_combo.currentIndexChanged.connect(lambda: asyncio.ensure_future(self.update_terminals()))
 
+    @Metrics.track_async_fnc_exec
     async def prep_terminal(self):
         self.terminal_label = QLabel(await translate("select_terminal") + ":")
         self.terminal_filter_input = QLineEdit()
@@ -69,6 +76,7 @@ class SubmitTab(QWidget):
         self.terminal_combo = QComboBox()
         self.terminal_combo.currentIndexChanged.connect(lambda: asyncio.ensure_future(self.update_commodities()))
 
+    @Metrics.track_async_fnc_exec
     async def prep_commodity_table(self):
         self.commodity_table = QTableWidget()
         self.columns = [
@@ -84,6 +92,7 @@ class SubmitTab(QWidget):
         self.commodity_table.setColumnHidden(0, True)
         self.commodity_table.setHorizontalHeaderLabels(self.columns)
 
+    @Metrics.track_async_fnc_exec
     async def prep_add_commodity(self):
         self.search_new_commodity_hboxlayout = QHBoxLayout()
         self.search_new_commodity_filter_layout = QVBoxLayout()
@@ -101,10 +110,12 @@ class SubmitTab(QWidget):
         self.search_new_commodity_hboxlayout.addWidget(self.search_new_commodity_combo)
         self.search_new_commodity_hboxlayout.addWidget(self.search_new_commodity_button)
 
+    @Metrics.track_async_fnc_exec
     async def prep_submit_button(self):
         self.submit_button = QPushButton(await translate("submit_report"))
         self.submit_button.clicked.connect(create_async_callback(self.ask_submit, self.commodity_table))
 
+    @Metrics.track_sync_fnc_exec
     def add_widgets(self):
         self.main_layout.addWidget(self.system_label)
         self.main_layout.addWidget(self.system_combo)
@@ -117,6 +128,7 @@ class SubmitTab(QWidget):
         self.main_layout.addLayout(self.search_new_commodity_hboxlayout)
         self.main_layout.addWidget(self.submit_button)
 
+    @Metrics.track_async_fnc_exec
     async def load_commodities(self):
         try:
             await self.ensure_initialized()
@@ -129,6 +141,7 @@ class SubmitTab(QWidget):
                                              await translate("error_failed_to_load_commodities") + ": " + str(e),
                                              QMessageBox.Icon.Critical)
 
+    @Metrics.track_async_fnc_exec
     async def load_systems(self):
         try:
             await self.ensure_initialized()
@@ -150,6 +163,7 @@ class SubmitTab(QWidget):
         finally:
             self.system_combo.blockSignals(False)
 
+    @Metrics.track_async_fnc_exec
     async def update_planets(self):
         await self.ensure_initialized()
         self.planet_combo.clear()
@@ -169,6 +183,7 @@ class SubmitTab(QWidget):
                                              await translate("error_failed_to_load_planets") + ": " + str(e),
                                              QMessageBox.Icon.Critical)
 
+    @Metrics.track_async_fnc_exec
     async def update_terminals(self):
         await self.ensure_initialized()
         self.terminal_combo.clear()
@@ -196,6 +211,7 @@ class SubmitTab(QWidget):
             self.filter_terminals()
         return self._unfiltered_terminals
 
+    @Metrics.track_sync_fnc_exec
     def filter_terminals(self, terminal_id=None):
         filter_text = self.terminal_filter_input.text().lower()
         self.terminal_combo.clear()
@@ -207,12 +223,14 @@ class SubmitTab(QWidget):
             if index != -1:
                 self.terminal_combo.setCurrentIndex(index)
 
+    @Metrics.track_sync_fnc_exec
     def add_new_commodity(self, commodity_id: 'int'):
         # TODO - Check if commodity_id exists
         commodity = Commodity()  # TODO - Create a "Commodity" object from this commodity_id
         row_number = 0  # TODO - Add a new row and get its row_number
         self.add_commodity(row_number, commodity, existing=False)
 
+    @Metrics.track_sync_fnc_exec
     def add_commodity(self, row: 'int', commodity: 'Commodity', existing=True):
         item_id = QTableWidgetItem(commodity.id)
         item_name = QTableWidgetItem(commodity.name)
@@ -242,6 +260,7 @@ class SubmitTab(QWidget):
         self.commodity_table.setCellWidget(row, 6, item_missing)
         # TODO - Add an action to remove the row for any "not existing" commodity added
 
+    @Metrics.track_async_fnc_exec
     async def update_commodities(self):
         await self.ensure_initialized()
         self.commodity_table.clear()
@@ -265,6 +284,7 @@ class SubmitTab(QWidget):
         finally:
             self.filter_commodities()
 
+    @Metrics.track_sync_fnc_exec
     def filter_commodities(self):
         filter_text = self.search_new_commodity_filter.text().lower()
         self.search_new_commodity_combo.clear()
@@ -272,13 +292,16 @@ class SubmitTab(QWidget):
             if filter_text in commodity["name"].lower():
                 self.search_new_commodity_combo.addItem(commodity["name"], commodity["id"])
 
+    @Metrics.track_sync_fnc_exec
     def ask_submit(self):
         raise NotImplementedError()  # TODO - Get data to submit from the table and store as temporary list
         raise NotImplementedError()  # TODO - Open a Dialog to Confirm addition of the commodities (#b/#s commodities to send)
 
+    @Metrics.track_sync_fnc_exec
     def submit_commodities(self):
         raise NotImplementedError()  # TODO - Submit the commodities stored as temporary list
 
+    @Metrics.track_sync_fnc_exec
     def set_gui_enabled(self, enabled):
         for lineedit in self.findChildren(QLineEdit):
             lineedit.setEnabled(enabled)
