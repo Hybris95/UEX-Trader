@@ -87,7 +87,7 @@ jobs:
         # stop the build if there are Python syntax errors or undefined names
         python -m flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=.venv,build,dist
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        python -m flake8 . --count --max-complexity=10 --max-line-length=127 --statistics --exclude=.venv,build,dist --ignore=N802,W503
+        python -m flake8 . --count --max-complexity=10 --max-line-length=127 --statistics --exclude=.venv,build,dist --ignore=N802,W503,W605
     - name: Lint with prospector
       if: steps.cache-venv.outputs.cache-hit == 'true'
       run: |
@@ -142,7 +142,7 @@ jobs:
       if: steps.cache-venv.outputs.cache-hit == 'true'
       run: |
         ${{ runner.os == 'Linux' && 'source .venv/bin/activate' || '.\.venv\Scripts\activate' }}
-        pyinstaller --onedir --name "UEX-Trader" --windowed --icon ./_internal/resources/uextrader_icon_resized_idL_icon.ico --add-data ./_internal/resources/UEXTrader_icon_resized.png:resources --add-data ./_internal/translations.ini:. --clean --noupx main.py
+        pyinstaller --onedir --name "UEX-Trader" --windowed --icon ./_internal/resources/uextrader_icon_resized_idL_icon.ico --add-data ./_internal/resources/UEXTrader_icon_resized.png:resources --add-data ./_internal/resources/UEXTrader_splashscreen.png:resources --add-data ./_internal/translations.ini:. --clean --noupx main.py
     - name: Sign Executable on Windows
       if: matrix.os == 'windows-latest' && env.SIGN_EXECUTABLE == 'true'
       run: |

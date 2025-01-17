@@ -1,6 +1,7 @@
 # translation_manager.py
 import configparser
 import asyncio
+from metrics import Metrics
 
 
 class TranslationManager:
@@ -52,12 +53,15 @@ class TranslationManager:
         await self.ensure_initialized()
         return self
 
+    @Metrics.track_sync_fnc_exec
     def load_translations(self):
         self.translation_config.read(self.translation_file, encoding="UTF-8")
 
+    @Metrics.track_sync_fnc_exec
     def get_available_lang(self):
         return self.available_langs
 
+    @Metrics.track_sync_fnc_exec
     def get_lang_name(self, lang):
         for item in self.available_langs:
             if lang is item or lang == item:
@@ -65,6 +69,7 @@ class TranslationManager:
         return "Unknown"
 
     # Use "ISO 639 language codes" as lang
+    @Metrics.track_sync_fnc_exec
     def get_translation(self, key, lang="en"):
         for item in self.available_langs:
             if lang is item or lang == item:
