@@ -21,6 +21,7 @@ load_terminals_activated = True
 load_commodities_prices_activated = True
 load_commodities_routes_activated = True
 remove_obsolete_keys_activated = True
+cleanup_cache_activated = True
 
 # hard-coded entities TTL
 system_ttl = 2419200  # Kept one month
