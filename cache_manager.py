@@ -196,7 +196,7 @@ class SQLiteCacheBackend:
         res = cur.execute("""
             SELECT COUNT(1)
             FROM cache
-            WHERE key LIKE CONCAT(?, '\_%') ESCAPE '\\';
+            WHERE key LIKE ? || '\_%' ESCAPE '\\';
         """, [endpoint]).fetchone()
         cur.close()
 

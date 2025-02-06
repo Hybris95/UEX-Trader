@@ -17,7 +17,7 @@ from global_variables import trade_tab_activated, trade_route_tab_activated
 from global_variables import best_trade_route_tab_activated, submit_tab_activated, metrics_tab_activated
 from global_variables import load_systems_activated, load_planets_activated, load_terminals_activated
 from global_variables import load_commodities_prices_activated, load_commodities_routes_activated
-from global_variables import remove_obsolete_keys_activated, distance_related_features
+from global_variables import remove_obsolete_keys_activated, distance_related_features, cleanup_cache_activated
 from metrics_widget import MetricsTab
 from metrics import Metrics
 
@@ -92,6 +92,7 @@ class UexcorpTrader(QWidget):
         await self._splash_load_terminals()
         await self._splash_load_commodities_prices()
         await self._splash_load_distances()
+        self._splash_cleanup_cache()
 
     @Metrics.track_sync_fnc_exec
     def _splash_remove_obsolete_keys(self):
@@ -133,6 +134,12 @@ class UexcorpTrader(QWidget):
             self._update_splash(55, "Initializing API Cache - Distances (Once per week)...")
             if not self.api.cache.endpoint_exists_in_cache("/commodities_routes"):
                 await self.api.fetch_all_routes()
+
+    @Metrics.track_async_fnc_exec
+    def _splash_cleanup_cache(self):
+        if cleanup_cache_activated:
+            self._update_splash(96, "Initializing API Cache - Cleanup Cache...")
+            self.api.cache.clean_obsolete()
 
     async def ensure_initialized(self):
         if not self._initialized.is_set():
