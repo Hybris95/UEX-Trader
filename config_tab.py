@@ -206,33 +206,35 @@ class ConfigTab(QWidget):
         self.secret_key_input.setEchoMode(QLineEdit.Password)
 
     @Metrics.track_sync_fnc_exec
-    def update_appearance_mode(self):
+    def update_appearance_mode(self, new_appearance=None):
         new_appearance = self.appearance_input.currentData()
         self.config_manager.set_appearance_mode(new_appearance)
         asyncio.ensure_future(self.main_widget.apply_appearance_mode(new_appearance))
 
     @Metrics.track_sync_fnc_exec
-    def update_lang(self):
+    def update_lang(self, new_lang=None):
         new_lang = self.language_input.currentData()
         self.config_manager.set_lang(new_lang)
         asyncio.ensure_future(self.main_widget.init_ui())
 
     @Metrics.track_sync_fnc_exec
-    def update_version(self):
+    def update_version(self, new_version=None):
         new_version = self.version_input.currentData()
         asyncio.ensure_future(self.config_manager.set_version(new_version))
 
     @Metrics.track_sync_fnc_exec
-    def update_is_production(self):
-        self.config_manager.set_is_production(self.is_production_checkbox.isChecked())
+    def update_is_production(self, new_is_production=None):
+        new_is_production = self.is_production_checkbox.isChecked()
+        self.config_manager.set_is_production(new_is_production)
 
     @Metrics.track_sync_fnc_exec
     def clear_cache(self):
         self.config_manager.clear_cache()
 
     @Metrics.track_sync_fnc_exec
-    def update_debug_mode(self):
-        self.config_manager.set_debug(self.debug_checkbox.isChecked())
+    def update_debug_mode(self, new_debug_mode=None):
+        new_debug_mode = self.debug_checkbox.isChecked()
+        self.config_manager.set_debug(new_debug_mode)
 
     @Metrics.track_sync_fnc_exec
     def update_api_key(self):
