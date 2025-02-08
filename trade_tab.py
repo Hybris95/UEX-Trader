@@ -223,9 +223,9 @@ class TradeTab(QWidget):
                                              QMessageBox.Icon.Critical)
 
     @Metrics.track_sync_fnc_exec
-    def update_buy_price(self, current):
-        if current:
-            commodity_id = current.data(Qt.UserRole)
+    def update_buy_price(self, current_item, previous_item):
+        if current_item:
+            commodity_id = current_item.data(Qt.UserRole)
             commodity = next((c for c in self._current_terminal_commodities
                               if c["id_commodity"] == commodity_id), None)
             if commodity:
@@ -236,9 +236,9 @@ class TradeTab(QWidget):
             self.buy_button.setEnabled(False)
 
     @Metrics.track_sync_fnc_exec
-    def update_sell_price(self, current):
-        if current:
-            commodity_id = current.data(Qt.UserRole)
+    def update_sell_price(self, current_item, previous_item):
+        if current_item:
+            commodity_id = current_item.data(Qt.UserRole)
             commodity = next((c for c in self._current_terminal_commodities
                               if c["id_commodity"] == commodity_id), None)
             if commodity:
@@ -409,5 +409,5 @@ class TradeTab(QWidget):
         for button in self.findChildren(QPushButton):
             button.setEnabled(enabled)
         if enabled:
-            self.update_buy_price(self.commodity_buy_list.currentItem())
-            self.update_sell_price(self.commodity_sell_list.currentItem())
+            self.update_buy_price(self.commodity_buy_list.currentItem(), None)
+            self.update_sell_price(self.commodity_sell_list.currentItem(), None)

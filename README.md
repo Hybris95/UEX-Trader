@@ -6,6 +6,12 @@ It is using UEXcorp as the database for all pieces of information read or given.
 
 ![UEX-Trader Icon](resources/UEXTrader_icon.png)
 
+## End-Users Prerequisites
+
+Before you begin, ensure you have met the following requirements:
+
+- You need at least 300MB of storage for the data cache
+
 ## Installation for End-Users
 
 1. **Download the latest Release for your Operating System:**
@@ -25,6 +31,7 @@ Before you begin, ensure you have met the following requirements:
 - You have Python 3.12.7 or higher installed.
 - You have `pip` (Python package installer) installed.
 - (Optional) You have access to the UEXcorp API.
+- You need at least 256MB of storage if you want to use metrics
 
 ## Installation for Developers
 
