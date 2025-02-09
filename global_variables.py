@@ -3,6 +3,7 @@ app_name = "UEX-Trader"
 cache_db_file = "cache.db"
 metrics_db_file = "metrics.db"
 config_ini_file = "config.ini"
+uexlog_log_file = "uex-trader.log"
 
 # hard-coded activable features
 trade_tab_activated = True
