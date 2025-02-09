@@ -72,10 +72,10 @@ async def test_get_window_size(config_manager):
 async def test_get_version(config_manager):
     await config_manager.set_version('ptu')
     assert config_manager.get_version() == 'ptu'
-    assert (await config_manager.get_version_value()) == '4.0.1'
+    assert (await config_manager.get_version_value()) == '4.0.2'
 
 
 @pytest.mark.asyncio
 async def default_test_get_version(config_manager):
     assert config_manager.get_version() == 'live'
-    assert (await config_manager.get_version_value()) == '4.0'
+    assert (await config_manager.get_version_value()) == '4.0.1'
