@@ -134,7 +134,10 @@ class ConfigTab(QWidget):
         self.version_input = QComboBox()
         versions = await self.api.fetch_versions()
         for version in versions:
-            self.version_input.addItem(version + " - " + versions[version], version)
+            version_value = versions[version]
+            if version_value is None:
+                version_value = "None"  # TODO - Translate None
+            self.version_input.addItem(version + " - " + version_value, version)
         self.version_input.setCurrentIndex(self.version_input.findData(self.config_manager.get_version()))
         self.version_input.currentIndexChanged.connect(self.update_version)
 
