@@ -35,7 +35,8 @@ class TranslationManager:
                 "fr",
                 "ru",
                 "de",
-                "ja"
+                "ja",
+                "tr"
             ]
             self.singleton = True
 
