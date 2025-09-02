@@ -26,7 +26,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: Restore cached venv
-      uses: actions/cache/restore@v4.1.2
+      uses: actions/cache/restore@v4
       id: restore-venv
       with:
         path: .venv
@@ -43,7 +43,7 @@ jobs:
         ls -R ${{ github.workspace }}/.venv/
     - name: Save cached venv
       if: steps.restore-venv.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4.1.2
+      uses: actions/cache/save@v4
       id: save-venv
       with:
         path: .venv
@@ -64,7 +64,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: Load Cache venv
-      uses: actions/cache/restore@v4.1.2
+      uses: actions/cache/restore@v4
       id: cache-venv
       with:
         path: .venv
@@ -128,7 +128,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: Load Cache venv
-      uses: actions/cache/restore@v4.1.2
+      uses: actions/cache/restore@v4
       id: cache-venv
       with:
         path: .venv
