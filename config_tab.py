@@ -136,7 +136,7 @@ class ConfigTab(QWidget):
         for version in versions:
             version_value = versions[version]
             if version_value is None:
-                version_value = "None" # TODO - Translate None
+                version_value = "None"  # TODO - Translate None
             self.version_input.addItem(version + " - " + version_value, version)
         self.version_input.setCurrentIndex(self.version_input.findData(self.config_manager.get_version()))
         self.version_input.currentIndexChanged.connect(self.update_version)
